@@ -2,6 +2,7 @@
 build/
 dist/
 release/
+release_payload/
 __pycache__/
 *.pyc
 *.pyo

@@ -1,45 +1,36 @@
-# Packaging And Publish Guide
+# 打包说明
 
-## 1) One-click local run
+## 一、构建发布负载目录
 
-Double-click:
+执行：
 
-`start_tool.bat`
+```bat
+build_release_folder.bat
+```
 
-It auto-detects Python and launches `launcher.py` with a local HTTP server.
+输出：
 
-## 2) Build standalone EXE (includes Python runtime)
+```text
+release_payload/
+```
 
-Double-click:
+该目录包含最终运行所需文件与内置 Python 运行时。
 
-`build_exe.bat`
+## 二、构建自安装 EXE
 
-Output:
+执行：
 
-`dist/TarkovMapLocator.exe`
+```bat
+build_installer.bat
+```
 
-## 3) Build self-installing installer EXE
+输出：
 
-Double-click:
+```text
+release/TarkovMapLocator.exe
+```
 
-`build_installer.bat`
-
-It will:
-
-1. Build the standalone EXE
-2. Install Inno Setup automatically (if missing)
-3. Build installer EXE
-
-Installer output:
-
-`release/Install-TarkovMapLocator.exe`
-
-## 4) Push to GitHub with one BAT command
-
-Double-click:
-
-`push_to_github.bat`
-
-or pass repo URL directly:
-
-`push_to_github.bat https://github.com/<yourname>/<repo>.git`
+说明：
+- 安装器支持自定义安装目录
+- 安装后通过 `start_tool.bat` 启动
+- 快捷方式也指向 `start_tool.bat`

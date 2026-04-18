@@ -1,19 +1,21 @@
-#define MyAppName "Tarkov Map Locator"
-#define MyAppVersion "1.0.0"
-#define MyAppPublisher "Local Build"
-#define MyAppExeName "TarkovMapLocator.exe"
-#define MySourceExe "..\\dist\\TarkovMapLocator.exe"
+#define MyAppName "塔科夫网页地图定位工具"
+#define MyAppVersion "1.1.0"
+#define MyAppPublisher "本地构建"
+#define MyLaunchBat "start_tool.bat"
+#define MyPayloadDir "..\\release_payload"
 
 [Setup]
 AppId={{9AE14130-FA4E-4468-867F-5C7165B0F6E2}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\TarkovMapLocator
+DefaultDirName={localappdata}\TarkovMapLocator
+UsePreviousAppDir=yes
+DisableDirPage=no
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\release
-OutputBaseFilename=Install-TarkovMapLocator
+OutputBaseFilename=TarkovMapLocator
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -25,14 +27,14 @@ ArchitecturesInstallIn64BitMode=x64compatible
 Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "额外任务:"
+Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务:"
 
 [Files]
-Source: "{#MySourceExe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#MyPayloadDir}\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyLaunchBat}"; WorkingDir: "{app}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyLaunchBat}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyLaunchBat}"; WorkingDir: "{app}"; Description: "启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent

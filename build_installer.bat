@@ -3,8 +3,8 @@ setlocal
 chcp 65001 >nul
 cd /d "%~dp0"
 
-echo [1/3] Building standalone EXE...
-call "%~dp0build_exe.bat"
+echo [1/3] Building release folder (project-like structure + bundled Python)...
+call "%~dp0build_release_folder.bat"
 if errorlevel 1 goto :error
 
 set "ISCC="
@@ -36,7 +36,7 @@ if errorlevel 1 goto :error
 
 echo.
 echo Done.
-echo Installer output: "%~dp0release\Install-TarkovMapLocator.exe"
+echo Installer output: "%~dp0release\TarkovMapLocator.exe"
 exit /b 0
 
 :error

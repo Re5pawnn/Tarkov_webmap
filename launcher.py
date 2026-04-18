@@ -11,7 +11,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 
-APP_TITLE = "Tarkov Map Locator"
+APP_TITLE = "塔科夫网页地图定位工具"
 
 
 class QuietHandler(SimpleHTTPRequestHandler):
@@ -46,15 +46,15 @@ def pick_port(preferred: int) -> int:
 
 def run() -> int:
     parser = argparse.ArgumentParser(description=APP_TITLE)
-    parser.add_argument("--port", type=int, default=5173, help="Preferred HTTP port")
-    parser.add_argument("--page", default="index.html", help="Entry page")
-    parser.add_argument("--no-browser", action="store_true", help="Do not auto open browser")
+    parser.add_argument("--port", type=int, default=5173, help="优先使用的 HTTP 端口")
+    parser.add_argument("--page", default="index.html", help="入口页面")
+    parser.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
     args = parser.parse_args()
 
     root = get_resource_root()
     entry = root / args.page
     if not entry.exists():
-        print(f"[ERROR] Missing entry file: {entry}")
+        print(f"[错误] 找不到入口文件: {entry}")
         return 1
 
     port = pick_port(args.port)
@@ -64,10 +64,10 @@ def run() -> int:
     thread.start()
 
     url = f"http://127.0.0.1:{port}/{args.page}"
-    print(f"{APP_TITLE} is running")
-    print(f"Root: {root}")
-    print(f"URL : {url}")
-    print("Press Ctrl+C to stop")
+    print(f"{APP_TITLE} 已启动")
+    print(f"目录: {root}")
+    print(f"地址: {url}")
+    print("按 Ctrl+C 停止")
 
     if not args.no_browser:
         webbrowser.open(url, new=2)
@@ -76,7 +76,7 @@ def run() -> int:
         while thread.is_alive():
             time.sleep(0.5)
     except KeyboardInterrupt:
-        print("\nStopping server...")
+        print("\n正在停止服务...")
     finally:
         server.shutdown()
         server.server_close()
