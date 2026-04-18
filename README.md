@@ -1,27 +1,14 @@
-# 塔科夫地图定位（仅地图版）
+# Tarkov Webmap
 
-## 功能
+本项目用于读取《逃离塔科夫》截图文件名中的坐标与朝向，并在网页地图上实时定位玩家位置。
 
-- 选择《逃离塔科夫》截图目录并监听新增截图。
-- 从截图文件名解析玩家坐标与朝向。
-- 自动或手动选择地图并在地图上显示实时定位点与朝向箭头。
-- 渲染地图点位图标（撤离点/出生点/钥匙门/开关/危险区/固定武器/BTR/转移点）。
-- 撤离点显示中文名称标签。
-- 页面自适应窗口大小，仅保留地图视图。
+## 一键使用
 
-## 运行
+- 双击 `start_tool.bat` 启动本地服务并打开网页
+- 双击 `build_exe.bat` 生成单文件 `dist/TarkovMapLocator.exe`（内含 Python 运行时）
+- 双击 `build_installer.bat` 生成自安装包 `release/Install-TarkovMapLocator.exe`
+- 双击 `push_to_github.bat` 可一键提交并推送到指定 GitHub 仓库
 
-```bash
-cd C:\Users\Administrator\Desktop\1
-python -m http.server 5173
-```
+## 网页入口
 
-打开：
-
-- `http://localhost:5173/index.html`
-
-## 使用
-
-1. 点击“选择截图目录”并选择截图文件夹。
-2. 点击“开始监听”。
-3. 游戏产生新截图后，地图会自动更新玩家位置。
+- `http://127.0.0.1:5173/index.html`
