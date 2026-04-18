@@ -30,16 +30,8 @@ echo [3/4] Detecting local Python runtime...
 set "PY_BASE="
 for /f "usebackq delims=" %%I in (`py -3 -c "import sys; print(sys.base_prefix)" 2^>nul`) do set "PY_BASE=%%I"
 if "%PY_BASE%"=="" for /f "usebackq delims=" %%I in (`python -c "import sys; print(sys.base_prefix)" 2^>nul`) do set "PY_BASE=%%I"
-if "%PY_BASE%"=="" (
-  for /d %%D in ("%LocalAppData%\\Python\\pythoncore-*") do (
-    if exist "%%~fD\\python.exe" set "PY_BASE=%%~fD"
-  )
-)
-if "%PY_BASE%"=="" (
-  for /d %%D in ("%LocalAppData%\\Programs\\Python\\Python*") do (
-    if exist "%%~fD\\python.exe" set "PY_BASE=%%~fD"
-  )
-)
+if "%PY_BASE%"=="" for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command "$p=Get-ChildItem \"$env:LocalAppData\\Python\\pythoncore-*\" -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1 -ExpandProperty FullName; if($p){Write-Output $p}"`) do set "PY_BASE=%%I"
+if "%PY_BASE%"=="" for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command "$p=Get-ChildItem \"$env:LocalAppData\\Programs\\Python\\Python*\" -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1 -ExpandProperty FullName; if($p){Write-Output $p}"`) do set "PY_BASE=%%I"
 if "%PY_BASE%"=="" (
   echo Python not found in PATH.
   goto :error
