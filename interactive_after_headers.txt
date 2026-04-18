@@ -1,0 +1,15 @@
+HTTP/1.1 200 OK
+Server: openresty
+Date: Fri, 17 Apr 2026 09:42:20 GMT
+Content-Type: text/html
+Content-Length: 2917
+Connection: keep-alive
+Vary: Accept-Encoding
+Rate-Limit-Remaining: 2998
+Rate-Limit-Reset: 1776418987
+Rate-Limit-Total: 3000
+Vary: Origin
+Access-Control-Allow-Origin: mahoutsukai.cn
+Access-Control-Allow-Credentials: true
+X-Response-Time: 1ms
+
