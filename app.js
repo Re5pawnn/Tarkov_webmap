@@ -23,13 +23,18 @@ const dom = {
   mapStatus: $("#mapStatus"),
   poiCount: $("#poiCount"),
   mapViewport: $("#mapViewport"),
+  mapCanvas: $("#mapCanvas"),
   mapImage: $("#mapImage"),
   poiLayer: $("#poiLayer"),
   mapMarker: $("#mapMarker"),
   mapArrow: $("#mapArrow"),
   mapNoData: $("#mapNoData"),
   toggleExtracts: $("#toggleExtracts"),
-  toggleSpawns: $("#toggleSpawns"),
+  toggleSpawnPmc: $("#toggleSpawnPmc"),
+  toggleSpawnScav: $("#toggleSpawnScav"),
+  toggleSpawnBoss: $("#toggleSpawnBoss"),
+  toggleSpawnSniper: $("#toggleSpawnSniper"),
+  toggleSpawnRogue: $("#toggleSpawnRogue"),
   toggleLocks: $("#toggleLocks"),
   toggleSwitches: $("#toggleSwitches"),
   toggleHazards: $("#toggleHazards"),
@@ -50,7 +55,11 @@ const state = {
   currentMapImageSrc: null,
   layerToggles: {
     extracts: true,
-    spawns: true,
+    spawnPmc: true,
+    spawnScav: true,
+    spawnBoss: true,
+    spawnSniper: true,
+    spawnRogue: true,
     locks: true,
     switches: true,
     hazards: true,
@@ -58,11 +67,27 @@ const state = {
     btr: true,
     transits: true,
   },
+  zoom: {
+    scale: 1,
+    min: 1,
+    max: 4,
+    tx: 0,
+    ty: 0,
+  },
+  drag: {
+    active: false,
+    lastClientX: 0,
+    lastClientY: 0,
+  },
 };
 
 function setStatus(message, isError = false) {
-  dom.status.textContent = `状态：${message}`;
+  dom.status.textContent = `状态: ${message}`;
   dom.status.style.color = isError ? "var(--danger)" : "var(--accent)";
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function normalize360(angle) {
@@ -198,8 +223,6 @@ function getMapBySelectionOrAuto(latest) {
   return chooseMapByRecentConsistency(latest) || state.maps[0] || null;
 }
 
-// Same projection relation as target site z8(...):
-// X=((x-x0)/(x1-x0))*W, Y=((z-z0)/(z1-z0))*H, and swap when reverseCoordinate=true.
 function createRealToImageConverter(size = { width: 1, height: 1 }, bounds, reverseCoordinate) {
   return {
     x: (realX, realZ) => {
@@ -269,6 +292,142 @@ function showPlayerMarker(unitPos, yawDeg) {
   dom.mapArrow.style.display = "block";
 }
 
+function getViewportSize() {
+  const rect = dom.mapViewport.getBoundingClientRect();
+  return {
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function clampZoomTranslation(scale, tx, ty) {
+  if (scale <= 1) {
+    return { tx: 0, ty: 0 };
+  }
+  const { width, height } = getViewportSize();
+  if (width <= 0 || height <= 0) {
+    return { tx: 0, ty: 0 };
+  }
+
+  const scaledWidth = width * scale;
+  const scaledHeight = height * scale;
+  const minX = Math.min(0, width - scaledWidth);
+  const minY = Math.min(0, height - scaledHeight);
+
+  return {
+    tx: clamp(tx, minX, 0),
+    ty: clamp(ty, minY, 0),
+  };
+}
+
+function canDragMap() {
+  return state.zoom.scale > 1 + 1e-6;
+}
+
+function updateMapDragCursor() {
+  const canDrag = canDragMap();
+  dom.mapViewport.classList.toggle("can-drag", canDrag);
+  if (!canDrag) {
+    state.drag.active = false;
+    dom.mapViewport.classList.remove("is-dragging");
+  }
+}
+
+function applyMapZoomTransform() {
+  const z = state.zoom;
+  dom.mapCanvas.style.transform = `translate(${z.tx}px, ${z.ty}px) scale(${z.scale})`;
+  updateMapDragCursor();
+}
+
+function stopMapDrag() {
+  if (!state.drag.active) {
+    return;
+  }
+  state.drag.active = false;
+  dom.mapViewport.classList.remove("is-dragging");
+}
+
+function resetMapZoom() {
+  stopMapDrag();
+  state.zoom.scale = 1;
+  state.zoom.tx = 0;
+  state.zoom.ty = 0;
+  applyMapZoomTransform();
+}
+
+function setMapZoomAt(nextScale, originX, originY) {
+  const z = state.zoom;
+  const prevScale = z.scale;
+  const clampedScale = clamp(nextScale, z.min, z.max);
+  if (!Number.isFinite(clampedScale) || clampedScale <= 0) {
+    return;
+  }
+  if (Math.abs(clampedScale - prevScale) < 1e-6) {
+    return;
+  }
+
+  if (!Number.isFinite(originX) || !Number.isFinite(originY)) {
+    z.scale = clampedScale;
+    const next = clampZoomTranslation(clampedScale, z.tx, z.ty);
+    z.tx = next.tx;
+    z.ty = next.ty;
+    applyMapZoomTransform();
+    return;
+  }
+
+  const worldX = (originX - z.tx) / prevScale;
+  const worldY = (originY - z.ty) / prevScale;
+  const rawTx = originX - worldX * clampedScale;
+  const rawTy = originY - worldY * clampedScale;
+  const next = clampZoomTranslation(clampedScale, rawTx, rawTy);
+
+  z.scale = clampedScale;
+  z.tx = next.tx;
+  z.ty = next.ty;
+  applyMapZoomTransform();
+}
+
+function handleMapWheel(event) {
+  event.preventDefault();
+  const rect = dom.mapViewport.getBoundingClientRect();
+  const originX = event.clientX - rect.left;
+  const originY = event.clientY - rect.top;
+  const zoomFactor = Math.exp(-event.deltaY * 0.0016);
+  const nextScale = state.zoom.scale * zoomFactor;
+  setMapZoomAt(nextScale, originX, originY);
+}
+
+function handleMapMouseDown(event) {
+  if (event.button !== 0 || !canDragMap()) {
+    return;
+  }
+  state.drag.active = true;
+  state.drag.lastClientX = event.clientX;
+  state.drag.lastClientY = event.clientY;
+  dom.mapViewport.classList.add("is-dragging");
+  event.preventDefault();
+}
+
+function handleMapMouseMove(event) {
+  if (!state.drag.active) {
+    return;
+  }
+  if (!canDragMap()) {
+    stopMapDrag();
+    return;
+  }
+
+  const dx = event.clientX - state.drag.lastClientX;
+  const dy = event.clientY - state.drag.lastClientY;
+  state.drag.lastClientX = event.clientX;
+  state.drag.lastClientY = event.clientY;
+
+  const next = clampZoomTranslation(state.zoom.scale, state.zoom.tx + dx, state.zoom.ty + dy);
+  state.zoom.tx = next.tx;
+  state.zoom.ty = next.ty;
+  applyMapZoomTransform();
+}
+
 function setMapImage(map) {
   const nextSrc = map?.svgPath || "";
   if (state.currentMapImageSrc === nextSrc) {
@@ -276,6 +435,7 @@ function setMapImage(map) {
   }
   state.currentMapImageSrc = nextSrc;
   dom.mapImage.src = nextSrc;
+  resetMapZoom();
 }
 
 function getIconUrl(iconName) {
@@ -329,6 +489,23 @@ function getSpawnIconName(spawn) {
   return "spawn_scav";
 }
 
+function getSpawnLayerType(spawn) {
+  const icon = getSpawnIconName(spawn);
+  if (icon === "spawn_boss") {
+    return "spawnBoss";
+  }
+  if (icon === "spawn_sniper_scav") {
+    return "spawnSniper";
+  }
+  if (icon === "spawn_rogue") {
+    return "spawnRogue";
+  }
+  if (icon === "spawn_pmc") {
+    return "spawnPmc";
+  }
+  return "spawnScav";
+}
+
 function getTransitDisplayName(transit) {
   const desc = typeof transit?.description === "string" ? transit.description.trim() : "";
   if (desc) {
@@ -362,6 +539,7 @@ function pushPoi(pois, point, icon, label, opts = {}) {
 
 function collectPois(map) {
   const pois = [];
+
   for (const e of map.extracts) {
     const displayName = getExtractDisplayName(e);
     const icon = getExtractIconName(e);
@@ -374,8 +552,10 @@ function collectPois(map) {
 
   for (const s of map.spawns) {
     const side = Array.isArray(s?.sides) && s.sides.length > 0 ? s.sides.join("/") : "unknown";
-    pushPoi(pois, s?.position, getSpawnIconName(s), `[出生点] ${s?.zoneName || "Zone"} (${side})`, {
-      type: "spawns",
+    const spawnIcon = getSpawnIconName(s);
+    const spawnLayerType = getSpawnLayerType(s);
+    pushPoi(pois, s?.position, spawnIcon, `[出生点] ${s?.zoneName || "Zone"} (${side})`, {
+      type: spawnLayerType,
       small: true,
     });
   }
@@ -560,9 +740,9 @@ async function loadMapMetadata() {
     state.maps = maps;
     state.mapsById = new Map(maps.map((m) => [m.id, m]));
     populateMapSelect();
-    setStatus(`地图元数据已加载：${maps.length} 张`);
+    setStatus(`地图元数据已加载: ${maps.length} 张`);
   } catch (error) {
-    setStatus(`加载地图元数据失败：${error.message}`, true);
+    setStatus(`加载地图元数据失败: ${error.message}`, true);
   }
 }
 
@@ -645,12 +825,11 @@ async function scanOnce() {
   }
 
   if (added === 0) {
-    // 无新增坐标时保持静默，不打扰当前定位显示
     return;
   }
 
   refreshUi();
-  setStatus(`扫描完成：识别坐标截图 ${found.length} 张，新增 ${added} 张，忽略无坐标 ${skippedNoCoordinate} 张`);
+  setStatus(`扫描完成: 识别 ${found.length} 张, 新增 ${added} 张, 忽略无坐标 ${skippedNoCoordinate} 张`);
 }
 
 function stopWatch() {
@@ -672,7 +851,7 @@ function startWatch() {
   stopWatch();
   state.scanTimer = setInterval(() => {
     scanOnce().catch((error) => {
-      setStatus(`扫描失败：${error.message}`, true);
+      setStatus(`扫描失败: ${error.message}`, true);
     });
   }, intervalSec * 1000);
   state.watching = true;
@@ -685,7 +864,6 @@ async function chooseDirectory() {
     setStatus("当前浏览器不支持目录选择 API", true);
     return;
   }
-
   try {
     const handle = await window.showDirectoryPicker({ mode: "read" });
     const granted = await ensureReadPermission(handle);
@@ -704,7 +882,7 @@ async function chooseDirectory() {
     await scanOnce();
   } catch (error) {
     if (error?.name !== "AbortError") {
-      setStatus(`选择目录失败：${error.message}`, true);
+      setStatus(`选择目录失败: ${error.message}`, true);
     }
   }
 }
@@ -734,13 +912,11 @@ async function restoreDirectory() {
 
 function bindEvents() {
   dom.pickDirBtn.addEventListener("click", () => {
-    chooseDirectory().catch((e) => setStatus(`选择目录失败：${e.message}`, true));
+    chooseDirectory().catch((e) => setStatus(`选择目录失败: ${e.message}`, true));
   });
-
   dom.scanBtn.addEventListener("click", () => {
-    scanOnce().catch((e) => setStatus(`扫描失败：${e.message}`, true));
+    scanOnce().catch((e) => setStatus(`扫描失败: ${e.message}`, true));
   });
-
   dom.watchBtn.addEventListener("click", () => {
     if (state.watching) {
       stopWatch();
@@ -749,7 +925,6 @@ function bindEvents() {
       startWatch();
     }
   });
-
   dom.mapSelect.addEventListener("change", () => {
     state.selectedMapId = dom.mapSelect.value || AUTO_MAP_ID;
     refreshUi();
@@ -757,7 +932,11 @@ function bindEvents() {
 
   const toggleBindings = [
     ["toggleExtracts", "extracts"],
-    ["toggleSpawns", "spawns"],
+    ["toggleSpawnPmc", "spawnPmc"],
+    ["toggleSpawnScav", "spawnScav"],
+    ["toggleSpawnBoss", "spawnBoss"],
+    ["toggleSpawnSniper", "spawnSniper"],
+    ["toggleSpawnRogue", "spawnRogue"],
     ["toggleLocks", "locks"],
     ["toggleSwitches", "switches"],
     ["toggleHazards", "hazards"],
@@ -773,17 +952,40 @@ function bindEvents() {
     });
   }
 
+  dom.mapViewport.addEventListener("wheel", handleMapWheel, { passive: false });
+  dom.mapViewport.addEventListener("mousedown", handleMapMouseDown);
+  window.addEventListener("mousemove", handleMapMouseMove);
+  window.addEventListener("mouseup", stopMapDrag);
+  window.addEventListener("blur", stopMapDrag);
+  dom.mapViewport.addEventListener("mouseleave", (event) => {
+    if (state.drag.active && event.buttons === 0) {
+      stopMapDrag();
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    const next = clampZoomTranslation(state.zoom.scale, state.zoom.tx, state.zoom.ty);
+    state.zoom.tx = next.tx;
+    state.zoom.ty = next.ty;
+    applyMapZoomTransform();
+  });
+
   dom.mapImage.addEventListener("load", () => {
     const w = dom.mapImage.naturalWidth;
     const h = dom.mapImage.naturalHeight;
     if (w > 0 && h > 0) {
       dom.mapViewport.style.aspectRatio = `${w} / ${h}`;
     }
+    const next = clampZoomTranslation(state.zoom.scale, state.zoom.tx, state.zoom.ty);
+    state.zoom.tx = next.tx;
+    state.zoom.ty = next.ty;
+    applyMapZoomTransform();
   });
 }
 
 async function boot() {
   bindEvents();
+  resetMapZoom();
   await loadMapMetadata();
   refreshUi();
   await restoreDirectory();
@@ -791,5 +993,5 @@ async function boot() {
 }
 
 boot().catch((error) => {
-  setStatus(`初始化失败：${error.message}`, true);
+  setStatus(`初始化失败: ${error.message}`, true);
 });

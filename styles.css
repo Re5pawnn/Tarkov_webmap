@@ -181,6 +181,24 @@ code,
   width: 100%;
   aspect-ratio: 16 / 9;
   background: #0b1620;
+  touch-action: none;
+  cursor: default;
+  user-select: none;
+}
+
+.map-viewport.can-drag {
+  cursor: grab;
+}
+
+.map-viewport.is-dragging {
+  cursor: grabbing;
+}
+
+.map-canvas {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  will-change: transform;
 }
 
 #mapImage {
@@ -188,6 +206,7 @@ code,
   height: 100%;
   display: block;
   object-fit: fill;
+  -webkit-user-drag: none;
 }
 
 .poi-layer {

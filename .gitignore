@@ -1,10 +1,13 @@
 .build_venv/
-build/
-dist/
-release/
-release_payload/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 *.spec
+
+release/
+release_payload/
+_install_test/
+
+dist/
+build/

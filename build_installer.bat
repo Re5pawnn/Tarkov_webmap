@@ -3,43 +3,14 @@ setlocal
 chcp 65001 >nul
 cd /d "%~dp0"
 
-echo [1/3] Building release folder (project-like structure + bundled Python)...
-call "%~dp0build_release_folder.bat"
-if errorlevel 1 goto :error
-
-set "ISCC="
-if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
-if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
-if exist "%LocalAppData%\Programs\Inno Setup 6\ISCC.exe" set "ISCC=%LocalAppData%\Programs\Inno Setup 6\ISCC.exe"
-
-if "%ISCC%"=="" (
-  echo [2/3] Inno Setup not found. Installing via winget...
-  winget install -e --id JRSoftware.InnoSetup --accept-package-agreements --accept-source-agreements
-  if errorlevel 1 (
-    echo Failed to install Inno Setup.
-    goto :error
-  )
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0build_installer.ps1"
+if errorlevel 1 (
+  echo.
+  echo 安装包构建失败。
+  pause
+  exit /b 1
 )
 
-if "%ISCC%"=="" if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
-if "%ISCC%"=="" if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
-if "%ISCC%"=="" if exist "%LocalAppData%\Programs\Inno Setup 6\ISCC.exe" set "ISCC=%LocalAppData%\Programs\Inno Setup 6\ISCC.exe"
-
-if "%ISCC%"=="" (
-  echo ISCC not found after installation.
-  goto :error
-)
-
-echo [3/3] Building self-installing installer EXE...
-"%ISCC%" "%~dp0installer\TarkovMapLocator.iss"
-if errorlevel 1 goto :error
-
 echo.
-echo Done.
-echo Installer output: "%~dp0release\TarkovMapLocator.exe"
-exit /b 0
-
-:error
-echo.
-echo Installer build failed.
-exit /b 1
+echo 安装包构建完成：release\TarkovMapLocator.exe
+pause

@@ -29,30 +29,36 @@
           <span id="dirLabel" class="dir-label">未选择目录</span>
         </div>
         <div class="control-row">
-          <span id="mapStatus" class="mono">地图状态：未加载</span>
+          <span id="mapStatus" class="mono">地图状态: 未加载</span>
           <span id="poiCount" class="mono">0 个点位</span>
         </div>
         <p class="hint">请通过 <code>http://localhost</code> 或 <code>https</code> 打开页面。</p>
-        <p id="status" class="status">状态：等待初始化</p>
+        <p id="status" class="status">状态: 等待初始化</p>
       </section>
 
       <section class="panel live-map-panel">
         <div class="overlay-controls">
           <label><input id="toggleExtracts" type="checkbox" checked /> 撤离点</label>
-          <label><input id="toggleSpawns" type="checkbox" checked /> 出生点</label>
+          <label><input id="toggleSpawnPmc" type="checkbox" checked /> PMC出生</label>
+          <label><input id="toggleSpawnScav" type="checkbox" checked /> Scav出生</label>
+          <label><input id="toggleSpawnBoss" type="checkbox" checked /> Boss刷新</label>
+          <label><input id="toggleSpawnSniper" type="checkbox" checked /> 狙击Scav</label>
+          <label><input id="toggleSpawnRogue" type="checkbox" checked /> Bot PMC</label>
           <label><input id="toggleLocks" type="checkbox" checked /> 钥匙门</label>
           <label><input id="toggleSwitches" type="checkbox" checked /> 开关</label>
           <label><input id="toggleHazards" type="checkbox" checked /> 危险区</label>
           <label><input id="toggleStationary" type="checkbox" checked /> 固定武器</label>
-          <label><input id="toggleBtr" type="checkbox" checked /> BTR 停靠点</label>
+          <label><input id="toggleBtr" type="checkbox" checked /> BTR停靠点</label>
           <label><input id="toggleTransits" type="checkbox" checked /> 转移点</label>
         </div>
 
         <div class="map-viewport" id="mapViewport">
-          <img id="mapImage" alt="map image" />
-          <div id="poiLayer" class="poi-layer"></div>
-          <div id="mapMarker" class="map-marker"></div>
-          <div id="mapArrow" class="map-arrow"></div>
+          <div id="mapCanvas" class="map-canvas">
+            <img id="mapImage" alt="map image" />
+            <div id="poiLayer" class="poi-layer"></div>
+            <div id="mapMarker" class="map-marker"></div>
+            <div id="mapArrow" class="map-arrow"></div>
+          </div>
           <div id="mapNoData" class="map-no-data">暂无地图数据</div>
         </div>
       </section>

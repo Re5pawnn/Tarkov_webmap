@@ -1,40 +1,33 @@
-#define MyAppName "塔科夫网页地图定位工具"
-#define MyAppVersion "1.1.0"
-#define MyAppPublisher "本地构建"
-#define MyLaunchBat "start_tool.bat"
-#define MyPayloadDir "..\\release_payload"
-
-[Setup]
+﻿[Setup]
 AppId={{9AE14130-FA4E-4468-867F-5C7165B0F6E2}
-AppName={#MyAppName}
-AppVersion={#MyAppVersion}
-AppPublisher={#MyAppPublisher}
+AppName=塔科夫地图定位工具
+AppVersion=1.0.0
+AppPublisher=TarkovMapLocator
 DefaultDirName={localappdata}\TarkovMapLocator
-UsePreviousAppDir=yes
-DisableDirPage=no
-DefaultGroupName={#MyAppName}
-DisableProgramGroupPage=yes
+DefaultGroupName=塔科夫地图定位工具
 OutputDir=..\release
 OutputBaseFilename=TarkovMapLocator
-Compression=lzma
+Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
+DisableProgramGroupPage=no
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 
 [Languages]
-Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
+Name: "chinesesimp"; MessagesFile: "ChineseSimplified.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务:"
+Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务："; Flags: unchecked
 
 [Files]
-Source: "{#MyPayloadDir}\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\release_payload\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyLaunchBat}"; WorkingDir: "{app}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyLaunchBat}"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\启动 塔科夫地图定位工具"; Filename: "{app}\start_tool.bat"
+Name: "{group}\卸载 塔科夫地图定位工具"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\TarkovMapLocator"; Filename: "{app}\start_tool.bat"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyLaunchBat}"; WorkingDir: "{app}"; Description: "启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\start_tool.bat"; Description: "立即启动 塔科夫地图定位工具"; Flags: nowait postinstall skipifsilent
