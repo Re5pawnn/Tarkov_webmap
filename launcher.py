@@ -70,7 +70,13 @@ def run() -> int:
     print("按 Ctrl+C 停止")
 
     if not args.no_browser:
-        webbrowser.open(url, new=2)
+        try:
+            opened = webbrowser.open(url, new=2)
+            if not opened:
+                print(f"[提示] 未能自动打开浏览器，请手动访问: {url}")
+        except Exception as exc:
+            print(f"[提示] 自动打开浏览器失败: {exc}")
+            print(f"[提示] 请手动访问: {url}")
 
     try:
         while thread.is_alive():
