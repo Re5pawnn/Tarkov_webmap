@@ -8,7 +8,7 @@
 - 使用exe安装
 - 安装完成后会创建快捷方式
 - 初次进入网页地图会提示选择截图目录
-- 选择正确截图目录（一般为C:\Users\Administrator\Documents\Escape from Tarkov\Screenshots）
+- 选择正确的截图目录（一般为C:\Users\Administrator\Documents\Escape from Tarkov\Screenshots）
 - 选择完后点击开始监听即可
 - 请使用塔科夫内置的截图键进行截图
 ## 免责声明  
