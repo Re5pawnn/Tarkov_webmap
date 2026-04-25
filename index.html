@@ -18,6 +18,7 @@
       <section class="panel controls">
         <div class="control-row">
           <button id="pickDirBtn" class="btn btn-primary">选择截图目录</button>
+          <button id="pickGameDirBtn" class="btn">选择游戏目录</button>
           <button id="scanBtn" class="btn">立即扫描</button>
           <button id="watchBtn" class="btn btn-accent">开始监听</button>
         </div>
@@ -26,7 +27,8 @@
           <input id="intervalInput" class="interval-input" type="number" min="1" max="30" value="2" />
           <label class="interval-label" for="mapSelect">地图</label>
           <select id="mapSelect"></select>
-          <span id="dirLabel" class="dir-label">未选择目录</span>
+          <span id="dirLabel" class="dir-label">截图目录: 未选择</span>
+          <span id="gameDirLabel" class="dir-label">游戏目录: 未选择</span>
         </div>
         <div class="control-row">
           <span id="mapStatus" class="mono">地图状态: 未加载</span>
@@ -56,11 +58,72 @@
           <div id="mapCanvas" class="map-canvas">
             <img id="mapImage" alt="map image" />
             <div id="poiLayer" class="poi-layer"></div>
+            <div id="peerLayer" class="peer-layer"></div>
             <div id="mapMarker" class="map-marker"></div>
             <div id="mapArrow" class="map-arrow"></div>
+            <div id="mapSelfName" class="map-self-name"></div>
           </div>
           <div id="mapNoData" class="map-no-data">暂无地图数据</div>
         </div>
+
+        <section id="raidInfoBar" class="raid-info-bar panel panel-inner">
+          <div class="raid-info-summary-wrap">
+            <div id="raidSummary" class="raid-info-summary"></div>
+            <button id="raidToggleBtn" class="btn raid-toggle-btn" type="button" aria-expanded="false">
+              展开详情
+            </button>
+          </div>
+          <div id="raidDetails" class="raid-info-details" hidden>
+            <div class="raid-info-grid">
+              <section class="raid-card">
+                <h2>当前战局</h2>
+                <div id="raidCurrentInfo" class="raid-detail-list"></div>
+              </section>
+              <section class="raid-card">
+                <h2>关键计时</h2>
+                <div id="raidTimingInfo" class="raid-detail-list"></div>
+              </section>
+              <section class="raid-card raid-events-card">
+                <h2>最近事件</h2>
+                <div id="raidEvents" class="raid-events"></div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section id="syncPanel" class="sync-panel panel panel-inner">
+          <div class="sync-panel-head">
+            <div>
+              <h2>队友同步（Sakura FRP）</h2>
+              <p class="sync-panel-sub">留空远端地址即房主模式；填写远端地址即连接模式。</p>
+            </div>
+            <button id="syncToggleBtn" class="btn btn-primary" type="button">开启同步</button>
+          </div>
+          <div class="sync-panel-controls">
+            <label class="sync-field">
+              <span>显示名称</span>
+              <input id="syncNameInput" type="text" maxlength="24" placeholder="输入你的名称" />
+            </label>
+            <label class="sync-field sync-field-color">
+              <span>标记颜色</span>
+              <input id="syncColorInput" type="color" value="#4fd1ff" />
+            </label>
+            <label class="sync-field">
+              <span>远端地址（连接模式）</span>
+              <input id="syncRemoteHostInput" type="text" maxlength="128" placeholder="例如 frp.example.com" />
+            </label>
+            <label class="sync-field sync-field-port">
+              <span>远端端口</span>
+              <input id="syncRemotePortInput" type="number" min="1" max="65535" value="39247" />
+            </label>
+          </div>
+          <div class="sync-panel-status-row">
+            <span id="syncStatus" class="mono">同步状态: 未开启</span>
+          </div>
+          <div id="syncPeerList" class="sync-peer-list">
+            <div class="sync-empty">暂无队友在线</div>
+          </div>
+        </section>
       </section>
     </main>
 

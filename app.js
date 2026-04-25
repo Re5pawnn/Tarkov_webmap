@@ -1,24 +1,67 @@
 const SCREENSHOT_RE =
   /^(?<date>\d{4}-\d{2}-\d{2})\[(?<hour>\d{2})-(?<minute>\d{2})\]_(?<x>-?\d+(?:\.\d+)?),\s*(?<y>-?\d+(?:\.\d+)?),\s*(?<z>-?\d+(?:\.\d+)?)_(?<qx>-?\d+(?:\.\d+)?),\s*(?<qy>-?\d+(?:\.\d+)?),\s*(?<qz>-?\d+(?:\.\d+)?),\s*(?<qw>-?\d+(?:\.\d+)?)_(?<scale>-?\d+(?:\.\d+)?)(?:\s*\((?<index>\d+)\))?\.png$/i;
-
+const LOG_DIRECTORY_RE = /^log_(?<stamp>\d{4}\.\d{2}\.\d{2}_\d{1,2}-\d{2}-\d{2})_(?<suffix>[0-9.]+)$/i;
+const LOG_ENTRY_START_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}(?: ?[+-]\d{2}:\d{2})?\|/;
 const DB_NAME = "tarkov-map-locator";
 const STORE_NAME = "handles";
-const HANDLE_KEY = "screenshotDir";
+const STORE_KEYS = {
+  screenshotDir: "screenshotDir",
+  gameDir: "gameDir",
+};
 const AUTO_MAP_ID = "__AUTO__";
 const MAX_RECORDS = 500;
 const MAX_POI_RENDER = 1800;
+const MAX_RAID_EVENTS = 30;
+const MAX_VISIBLE_RAID_EVENTS = 5;
+const LAN_SYNC_STORAGE_KEY = "tarkov-map-locator.lan-sync";
+const LAN_SYNC_POLL_MS = 1500;
+const LAN_SYNC_MIN_PUBLISH_MS = 900;
+const LAN_SYNC_DEFAULT_COLOR = "#4fd1ff";
+const LAN_SYNC_DEFAULT_PORT = 39247;
 const POI_EDGE_TOLERANCE = 0.02;
 const ICON_BASE = "https://cdn.kaedeori.com/uploads/tarkov/map-icons";
+const FLEA_MARKET_SOLD_TEMPLATE = "5bdabfb886f7743e152e867e 0";
+const FLEA_MARKET_EXPIRED_TEMPLATE = "5bdabfe486f7743e1665df6e 0";
+const TASK_MESSAGE_TYPES = {
+  started: 10,
+  failed: 11,
+  finished: 12,
+};
+const MAP_PRESET_TO_ID = {
+  TarkovStreets: "5714dc692459777137212e12",
+  Sandbox: "653e6760052c01c1c805532f",
+  Sandbox_high: "65b8d6f5cdde2479cb2a3125",
+  bigmap: "56f40101d2720b2a4d8b45d6",
+  factory4_day: "55f2d3fd4bdc2d5f408b4567",
+  factory4_night: "59fc81d786f774390775787e",
+  Interchange: "5714dbc024597771384a510d",
+  laboratory: "5b0fc42d86f7744a585f9105",
+  Lighthouse: "5704e4dad2720bb55b8b4567",
+  RezervBase: "5704e5fad2720bc05b8b4567",
+  Shoreline: "5704e554d2720bac5b8b456e",
+  Woods: "5704e3c2d2720bac5b8b4567",
+};
+const RAID_STATUS_TEXT = {
+  idle: "待战局",
+  matching: "匹配中",
+  loading: "加载中",
+  in_raid: "已进战局",
+  extracting_or_over: "已结束",
+  aborted: "已取消",
+  error: "异常",
+};
 
 const $ = (selector) => document.querySelector(selector);
 
 const dom = {
   pickDirBtn: $("#pickDirBtn"),
+  pickGameDirBtn: $("#pickGameDirBtn"),
   scanBtn: $("#scanBtn"),
   watchBtn: $("#watchBtn"),
   intervalInput: $("#intervalInput"),
   mapSelect: $("#mapSelect"),
   dirLabel: $("#dirLabel"),
+  gameDirLabel: $("#gameDirLabel"),
   status: $("#status"),
   mapStatus: $("#mapStatus"),
   poiCount: $("#poiCount"),
@@ -26,9 +69,26 @@ const dom = {
   mapCanvas: $("#mapCanvas"),
   mapImage: $("#mapImage"),
   poiLayer: $("#poiLayer"),
+  peerLayer: $("#peerLayer"),
   mapMarker: $("#mapMarker"),
   mapArrow: $("#mapArrow"),
+  mapSelfName: $("#mapSelfName"),
   mapNoData: $("#mapNoData"),
+  raidInfoBar: $("#raidInfoBar"),
+  raidSummary: $("#raidSummary"),
+  raidDetails: $("#raidDetails"),
+  raidCurrentInfo: $("#raidCurrentInfo"),
+  raidTimingInfo: $("#raidTimingInfo"),
+  raidEvents: $("#raidEvents"),
+  raidToggleBtn: $("#raidToggleBtn"),
+  syncPanel: $("#syncPanel"),
+  syncToggleBtn: $("#syncToggleBtn"),
+  syncNameInput: $("#syncNameInput"),
+  syncColorInput: $("#syncColorInput"),
+  syncRemoteHostInput: $("#syncRemoteHostInput"),
+  syncRemotePortInput: $("#syncRemotePortInput"),
+  syncStatus: $("#syncStatus"),
+  syncPeerList: $("#syncPeerList"),
   toggleExtracts: $("#toggleExtracts"),
   toggleSpawnPmc: $("#toggleSpawnPmc"),
   toggleSpawnScav: $("#toggleSpawnScav"),
@@ -43,8 +103,90 @@ const dom = {
   toggleTransits: $("#toggleTransits"),
 };
 
+function createInitialRaidCurrent(previous = {}) {
+  return {
+    mapId: null,
+    mapName: null,
+    sessionMode: previous.sessionMode || null,
+    raidId: null,
+    serverIp: null,
+    serverPort: null,
+    status: "idle",
+    rawStatus: null,
+    matchStartAt: null,
+    queueCompletedAt: null,
+    gameStartAt: null,
+    raidEndAt: null,
+    queueDurationSec: null,
+    loadDurationSec: null,
+    isActive: false,
+    profileId: previous.profileId || null,
+    accountId: previous.accountId || null,
+  };
+}
+
+function createInitialRaidSummary() {
+  return {
+    panelState: "not-connected",
+    watchText: "未接入日志",
+    mapName: "--",
+    sessionMode: "--",
+    raidStatusText: RAID_STATUS_TEXT.idle,
+    lastLogTime: "--",
+    currentRows: [],
+    timingRows: [],
+    events: [],
+  };
+}
+
+function createInitialRaidState() {
+  return {
+    gameDirHandle: null,
+    logDirHandle: null,
+    applicationLogHandle: null,
+    notificationsLogHandle: null,
+    watchingLogs: false,
+    lastLogScanAt: null,
+    logOffsets: {
+      application: 0,
+      notifications: 0,
+    },
+    logLastModified: {
+      application: 0,
+      notifications: 0,
+    },
+    current: createInitialRaidCurrent(),
+    events: [],
+    summary: createInitialRaidSummary(),
+    ui: {
+      expanded: false,
+      error: "",
+      lastUpdatedAt: null,
+    },
+  };
+}
+
+function createInitialLanState() {
+  return {
+    enabled: false,
+    displayName: "本机玩家",
+    color: LAN_SYNC_DEFAULT_COLOR,
+    remoteHost: "",
+    remotePort: LAN_SYNC_DEFAULT_PORT,
+    mode: "off",
+    transport: "frp-tcp",
+    peers: [],
+    backendReady: false,
+    lastError: "",
+    pollTimer: null,
+    lastSentSignature: "",
+    lastSentAt: 0,
+    lastPublishedAt: 0,
+  };
+}
+
 const state = {
-  dirHandle: null,
+  screenshotDirHandle: null,
   scanTimer: null,
   watching: false,
   records: [],
@@ -79,6 +221,8 @@ const state = {
     lastClientX: 0,
     lastClientY: 0,
   },
+  raid: createInitialRaidState(),
+  lan: createInitialLanState(),
 };
 
 function setStatus(message, isError = false) {
@@ -92,6 +236,93 @@ function clamp(value, min, max) {
 
 function normalize360(angle) {
   return ((angle % 360) + 360) % 360;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function safeText(value, fallback = "--") {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+  const text = String(value).trim();
+  return text ? text : fallback;
+}
+
+function formatClockTime(value) {
+  if (!value) {
+    return "--";
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "--";
+  }
+  return date.toLocaleTimeString("zh-CN", { hour12: false });
+}
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return "--";
+  }
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)} 秒`;
+  }
+  const wholeSeconds = Math.round(seconds);
+  const minutes = Math.floor(wholeSeconds / 60);
+  const remain = wholeSeconds % 60;
+  return `${minutes} 分 ${remain} 秒`;
+}
+
+function normalizeSyncName(value) {
+  const text = String(value ?? "").trim();
+  return (text || "本机玩家").slice(0, 24);
+}
+
+function normalizeHexColor(value) {
+  const text = String(value ?? "").trim();
+  return /^#[0-9a-fA-F]{6}$/.test(text) ? text.toLowerCase() : LAN_SYNC_DEFAULT_COLOR;
+}
+
+function normalizeSyncHost(value) {
+  return String(value ?? "").trim().slice(0, 128);
+}
+
+function normalizeSyncPort(value, fallback = LAN_SYNC_DEFAULT_PORT) {
+  const numeric = Number.parseInt(String(value ?? ""), 10);
+  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= 65535) {
+    return numeric;
+  }
+  return fallback;
+}
+
+function hexToRgba(hex, alpha) {
+  const color = normalizeHexColor(hex).slice(1);
+  const r = parseInt(color.slice(0, 2), 16);
+  const g = parseInt(color.slice(2, 4), 16);
+  const b = parseInt(color.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function formatRelativeAge(timestampMs) {
+  if (!Number.isFinite(timestampMs) || timestampMs <= 0) {
+    return "--";
+  }
+  const diffSec = Math.max(0, Math.round((Date.now() - timestampMs) / 1000));
+  if (diffSec < 2) {
+    return "刚刚";
+  }
+  if (diffSec < 60) {
+    return `${diffSec} 秒前`;
+  }
+  const minutes = Math.floor(diffSec / 60);
+  const remain = diffSec % 60;
+  return remain > 0 ? `${minutes} 分 ${remain} 秒前` : `${minutes} 分前`;
 }
 
 function quaternionToYawDeg(qx, qy, qz, qw) {
@@ -190,15 +421,15 @@ function pointInBounds(point, map) {
 }
 
 function chooseMapByRecentConsistency(latest) {
-  const candidates = state.maps.filter((m) => pointInBounds(latest, m));
+  const candidates = state.maps.filter((map) => pointInBounds(latest, map));
   if (candidates.length === 0) {
     return null;
   }
   const recent = state.records.slice(-30);
   const scored = candidates.map((map) => {
     let score = 0;
-    for (const rec of recent) {
-      if (pointInBounds(rec, map)) {
+    for (const record of recent) {
+      if (pointInBounds(record, map)) {
         score += 1;
       }
     }
@@ -221,6 +452,16 @@ function getMapBySelectionOrAuto(latest) {
     return state.maps[0] || null;
   }
   return chooseMapByRecentConsistency(latest) || state.maps[0] || null;
+}
+
+function getRaidSummaryMapFallback(latest) {
+  if (state.selectedMapId !== AUTO_MAP_ID) {
+    return state.mapsById.get(state.selectedMapId) || null;
+  }
+  if (!latest) {
+    return null;
+  }
+  return chooseMapByRecentConsistency(latest) || null;
 }
 
 function createRealToImageConverter(size = { width: 1, height: 1 }, bounds, reverseCoordinate) {
@@ -246,8 +487,8 @@ function projectWorldToUnit(point, map) {
   };
 }
 
-function inUnitRange(v) {
-  return Number.isFinite(v) && v >= 0 && v <= 1;
+function inUnitRange(value) {
+  return Number.isFinite(value) && value >= 0 && value <= 1;
 }
 
 function normalizePoiUnit(pos) {
@@ -278,6 +519,7 @@ function setMapOverlayVisible(visible, message = "") {
 function hidePlayerMarker() {
   dom.mapMarker.style.display = "none";
   dom.mapArrow.style.display = "none";
+  dom.mapSelfName.style.display = "none";
 }
 
 function showPlayerMarker(unitPos, yawDeg) {
@@ -288,8 +530,71 @@ function showPlayerMarker(unitPos, yawDeg) {
   dom.mapArrow.style.left = left;
   dom.mapArrow.style.top = top;
   dom.mapArrow.style.transform = `translate(-50%, -50%) rotate(${yawDeg}deg)`;
+  dom.mapSelfName.style.left = left;
+  dom.mapSelfName.style.top = `calc(${top} + 18px)`;
+  dom.mapSelfName.textContent = normalizeSyncName(state.lan.displayName);
   dom.mapMarker.style.display = "block";
   dom.mapArrow.style.display = "block";
+  dom.mapSelfName.style.display = "block";
+}
+
+function applyLocalMarkerAppearance() {
+  const color = normalizeHexColor(state.lan.color);
+  dom.mapMarker.style.setProperty("--player-marker-color", color);
+  dom.mapMarker.style.setProperty("--player-marker-glow", hexToRgba(color, 0.35));
+  dom.mapArrow.style.setProperty("--player-arrow-color", color);
+  dom.mapSelfName.style.borderColor = hexToRgba(color, 0.45);
+}
+
+function renderPeerLayer(map) {
+  dom.peerLayer.innerHTML = "";
+  if (!map || !state.lan.enabled || !state.lan.backendReady || !state.lan.peers.length) {
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+  for (const peer of state.lan.peers) {
+    const peerState = peer?.state;
+    if (!peerState || peerState.mapId !== map.id) {
+      continue;
+    }
+    if (!Number.isFinite(peerState.x) || !Number.isFinite(peerState.z)) {
+      continue;
+    }
+    const point = projectWorldToUnit({ x: peerState.x, z: peerState.z }, map);
+    if (!inUnitRange(point.u) || !inUnitRange(point.v)) {
+      continue;
+    }
+
+    const color = normalizeHexColor(peer.color);
+    const wrap = document.createElement("div");
+    wrap.className = "peer-wrap";
+    wrap.style.left = `${(point.u * 100).toFixed(4)}%`;
+    wrap.style.top = `${(point.v * 100).toFixed(4)}%`;
+    wrap.title = `${peer.displayName || "队友"} / ${peerState.mapName || map.name || "未知地图"}`;
+
+    const marker = document.createElement("div");
+    marker.className = "peer-marker";
+    marker.style.background = color;
+    marker.style.boxShadow = `0 0 0 3px ${hexToRgba(color, 0.18)}`;
+    wrap.appendChild(marker);
+
+    const arrow = document.createElement("div");
+    arrow.className = "peer-arrow";
+    arrow.style.color = color;
+    arrow.style.transform = `translate(-50%, -50%) rotate(${Number.isFinite(peerState.yawDeg) ? peerState.yawDeg : 0}deg)`;
+    wrap.appendChild(arrow);
+
+    const label = document.createElement("div");
+    label.className = "peer-name";
+    label.textContent = peer.displayName || "队友";
+    label.style.borderColor = hexToRgba(color, 0.45);
+    wrap.appendChild(label);
+
+    frag.appendChild(wrap);
+  }
+
+  dom.peerLayer.appendChild(frag);
 }
 
 function getViewportSize() {
@@ -540,61 +845,61 @@ function pushPoi(pois, point, icon, label, opts = {}) {
 function collectPois(map) {
   const pois = [];
 
-  for (const e of map.extracts) {
-    const displayName = getExtractDisplayName(e);
-    const icon = getExtractIconName(e);
-    pushPoi(pois, e?.position, icon, `[撤离点] ${displayName}`, {
+  for (const extract of map.extracts) {
+    const displayName = getExtractDisplayName(extract);
+    const icon = getExtractIconName(extract);
+    pushPoi(pois, extract?.position, icon, `[撤离点] ${displayName}`, {
       type: "extracts",
       showLabel: true,
       labelText: displayName,
     });
   }
 
-  for (const s of map.spawns) {
-    const side = Array.isArray(s?.sides) && s.sides.length > 0 ? s.sides.join("/") : "unknown";
-    const spawnIcon = getSpawnIconName(s);
-    const spawnLayerType = getSpawnLayerType(s);
-    pushPoi(pois, s?.position, spawnIcon, `[出生点] ${s?.zoneName || "Zone"} (${side})`, {
+  for (const spawn of map.spawns) {
+    const side = Array.isArray(spawn?.sides) && spawn.sides.length > 0 ? spawn.sides.join("/") : "unknown";
+    const spawnIcon = getSpawnIconName(spawn);
+    const spawnLayerType = getSpawnLayerType(spawn);
+    pushPoi(pois, spawn?.position, spawnIcon, `[出生点] ${spawn?.zoneName || "Zone"} (${side})`, {
       type: spawnLayerType,
       small: true,
     });
   }
 
-  for (const l of map.locks) {
-    pushPoi(pois, l?.position, "lock", `[钥匙门] ${l?.key?.name || "未命名"}`, {
+  for (const lock of map.locks) {
+    pushPoi(pois, lock?.position, "lock", `[钥匙门] ${lock?.key?.name || "未命名"}`, {
       type: "locks",
       small: true,
     });
   }
 
-  for (const s of map.switches) {
-    pushPoi(pois, s?.position, "switch", `[开关] ${s?.name || "未命名开关"}`, {
+  for (const sw of map.switches) {
+    pushPoi(pois, sw?.position, "switch", `[开关] ${sw?.name || "未命名开关"}`, {
       type: "switches",
     });
   }
 
-  for (const h of map.hazards) {
-    pushPoi(pois, h?.position, "hazard", `[危险区] ${h?.name || h?.hazardType || "危险区"}`, {
+  for (const hazard of map.hazards) {
+    pushPoi(pois, hazard?.position, "hazard", `[危险区] ${hazard?.name || hazard?.hazardType || "危险区"}`, {
       type: "hazards",
       small: true,
     });
   }
 
-  for (const w of map.stationaryWeapons) {
-    pushPoi(pois, w?.position, "stationarygun", `[固定武器] ${w?.stationaryWeapon?.name || "武器点位"}`, {
+  for (const weapon of map.stationaryWeapons) {
+    pushPoi(pois, weapon?.position, "stationarygun", `[固定武器] ${weapon?.stationaryWeapon?.name || "武器点位"}`, {
       type: "stationary",
     });
   }
 
-  for (const b of map.btrStops) {
-    pushPoi(pois, b?.position, "btr_stop", `[BTR] ${b?.name || "停靠点"}`, {
+  for (const stop of map.btrStops) {
+    pushPoi(pois, stop?.position, "btr_stop", `[BTR] ${stop?.name || "停靠点"}`, {
       type: "btr",
     });
   }
 
-  for (const tr of map.transits) {
-    const transitName = getTransitDisplayName(tr);
-    pushPoi(pois, tr?.position, "extract_transit", `[转移点] ${transitName}`, {
+  for (const transit of map.transits) {
+    const transitName = getTransitDisplayName(transit);
+    pushPoi(pois, transit?.position, "extract_transit", `[转移点] ${transitName}`, {
       type: "transits",
       showLabel: true,
       labelText: transitName,
@@ -666,7 +971,7 @@ function updateMapPanel(latest) {
     renderPoiLayer(null);
     setMapImage(null);
     setMapOverlayVisible(true, "未读取到 maps_detail.json");
-    return;
+    return null;
   }
 
   const map = getMapBySelectionOrAuto(latest);
@@ -676,7 +981,7 @@ function updateMapPanel(latest) {
     renderPoiLayer(null);
     setMapImage(null);
     setMapOverlayVisible(true, "无可用地图");
-    return;
+    return null;
   }
 
   setMapImage(map);
@@ -691,20 +996,389 @@ function updateMapPanel(latest) {
 
   if (!latest) {
     hidePlayerMarker();
-    return;
+    return map;
   }
 
   const p = projectWorldToUnit({ x: latest.x, z: latest.z }, map);
   if (!inUnitRange(p.u) || !inUnitRange(p.v)) {
     hidePlayerMarker();
-    return;
+    return map;
   }
   showPlayerMarker(p, latest.yawDeg);
+  return map;
+}
+
+function updateDirLabels() {
+  dom.dirLabel.textContent = state.screenshotDirHandle
+    ? `截图目录: ${state.screenshotDirHandle.name || "已选择"}`
+    : "截图目录: 未选择";
+  dom.gameDirLabel.textContent = state.raid.gameDirHandle
+    ? `游戏目录: ${state.raid.gameDirHandle.name || "已选择"}`
+    : "游戏目录: 未选择";
+}
+
+function renderDetailRows(container, rows) {
+  container.innerHTML = rows
+    .map(
+      (row) => `
+        <div class="raid-detail-row">
+          <span class="raid-detail-label">${escapeHtml(row.label)}</span>
+          <span class="raid-detail-value">${escapeHtml(row.value)}</span>
+        </div>
+      `,
+    )
+    .join("");
+}
+
+function renderRaidEvents(events) {
+  if (!events.length) {
+    dom.raidEvents.innerHTML = '<div class="raid-empty">暂无战局事件</div>';
+    return;
+  }
+  dom.raidEvents.innerHTML = events
+    .map(
+      (event) => `
+        <article class="raid-event">
+          <div class="raid-event-head">
+            <span class="raid-event-title">${escapeHtml(event.title)}</span>
+            <span class="raid-event-time">${escapeHtml(event.time)}</span>
+          </div>
+          <div class="raid-event-detail">${escapeHtml(event.detail)}</div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderRaidInfo(summaryState) {
+  const summary = summaryState || createInitialRaidSummary();
+  state.raid.summary = summary;
+  dom.raidInfoBar.className = `raid-info-bar panel panel-inner status-${summary.panelState}`;
+  dom.raidSummary.innerHTML = `
+    <span class="raid-pill raid-pill-status">
+      <span class="raid-pill-label">监听</span>
+      <span class="raid-pill-value">${escapeHtml(summary.watchText)}</span>
+    </span>
+    <span class="raid-pill">
+      <span class="raid-pill-label">当前地图</span>
+      <span class="raid-pill-value">${escapeHtml(summary.mapName)}</span>
+    </span>
+    <span class="raid-pill">
+      <span class="raid-pill-label">模式</span>
+      <span class="raid-pill-value">${escapeHtml(summary.sessionMode)}</span>
+    </span>
+    <span class="raid-pill">
+      <span class="raid-pill-label">战局</span>
+      <span class="raid-pill-value">${escapeHtml(summary.raidStatusText)}</span>
+    </span>
+    <span class="raid-pill">
+      <span class="raid-pill-label">最近日志</span>
+      <span class="raid-pill-value">${escapeHtml(summary.lastLogTime)}</span>
+    </span>
+  `;
+
+  const expanded = Boolean(state.raid.ui.expanded);
+  dom.raidToggleBtn.textContent = expanded ? "收起详情" : "展开详情";
+  dom.raidToggleBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
+  dom.raidDetails.hidden = !expanded;
+  renderDetailRows(dom.raidCurrentInfo, summary.currentRows);
+  renderDetailRows(dom.raidTimingInfo, summary.timingRows);
+  renderRaidEvents(summary.events);
+}
+
+function getSummaryPanelState() {
+  if (state.raid.ui.error) {
+    return "error";
+  }
+  if (state.raid.current.status === "in_raid") {
+    return "active";
+  }
+  if (state.raid.current.status === "extracting_or_over" || state.raid.current.status === "aborted") {
+    return "ended";
+  }
+  if (state.raid.gameDirHandle) {
+    return "listening";
+  }
+  return "not-connected";
+}
+
+function buildRaidSummary(latest, summaryMap) {
+  const current = state.raid.current;
+  const events = state.raid.events.slice(0, MAX_VISIBLE_RAID_EVENTS).map((event) => ({
+    title: event.title,
+    detail: event.detail || "已记录",
+    time: formatClockTime(event.timestamp),
+  }));
+  const displayMapName = current.mapName || summaryMap?.name || "--";
+  let watchText = "未接入日志";
+  if (state.raid.ui.error) {
+    watchText = "日志异常";
+  } else if (state.raid.gameDirHandle && state.raid.watchingLogs) {
+    watchText = "日志监听中";
+  } else if (state.raid.gameDirHandle) {
+    watchText = "日志待监听";
+  } else if (latest) {
+    watchText = "仅截图定位";
+  }
+
+  return {
+    panelState: getSummaryPanelState(),
+    watchText,
+    mapName: displayMapName,
+    sessionMode: safeText(current.sessionMode, "--"),
+    raidStatusText: current.status === "error" ? "异常" : RAID_STATUS_TEXT[current.status] || "待战局",
+    lastLogTime: formatClockTime(state.raid.lastLogScanAt || state.raid.ui.lastUpdatedAt),
+    currentRows: [
+      { label: "当前地图", value: displayMapName },
+      { label: "会话模式", value: safeText(current.sessionMode, "未识别") },
+      { label: "Raid ID", value: safeText(current.raidId) },
+      { label: "服务器", value: current.serverIp ? `${current.serverIp}${current.serverPort ? `:${current.serverPort}` : ""}` : "--" },
+      { label: "状态", value: RAID_STATUS_TEXT[current.status] || "待战局" },
+    ],
+    timingRows: [
+      { label: "最近日志", value: formatClockTime(state.raid.lastLogScanAt || state.raid.ui.lastUpdatedAt) },
+      { label: "排队耗时", value: formatDuration(current.queueDurationSec) },
+      { label: "加载耗时", value: formatDuration(current.loadDurationSec) },
+      { label: "进入战局", value: formatClockTime(current.gameStartAt) },
+      { label: "结束时间", value: formatClockTime(current.raidEndAt) },
+    ],
+    events,
+  };
+}
+
+function reflectLanConfigInputs() {
+  if (document.activeElement !== dom.syncNameInput) {
+    dom.syncNameInput.value = state.lan.displayName;
+  }
+  if (document.activeElement !== dom.syncColorInput) {
+    dom.syncColorInput.value = normalizeHexColor(state.lan.color);
+  }
+  if (document.activeElement !== dom.syncRemoteHostInput) {
+    dom.syncRemoteHostInput.value = state.lan.remoteHost;
+  }
+  if (document.activeElement !== dom.syncRemotePortInput) {
+    dom.syncRemotePortInput.value = String(normalizeSyncPort(state.lan.remotePort));
+  }
+}
+
+function loadLanSyncConfig() {
+  try {
+    const raw = localStorage.getItem(LAN_SYNC_STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    state.lan.enabled = Boolean(parsed?.enabled);
+    state.lan.displayName = normalizeSyncName(parsed?.displayName);
+    state.lan.color = normalizeHexColor(parsed?.color);
+    state.lan.remoteHost = normalizeSyncHost(parsed?.remoteHost);
+    state.lan.remotePort = normalizeSyncPort(parsed?.remotePort);
+  } catch {
+    state.lan.enabled = false;
+    state.lan.displayName = "本机玩家";
+    state.lan.color = LAN_SYNC_DEFAULT_COLOR;
+    state.lan.remoteHost = "";
+    state.lan.remotePort = LAN_SYNC_DEFAULT_PORT;
+  }
+}
+
+function persistLanSyncConfig() {
+  const payload = {
+    enabled: Boolean(state.lan.enabled),
+    displayName: normalizeSyncName(state.lan.displayName),
+    color: normalizeHexColor(state.lan.color),
+    remoteHost: normalizeSyncHost(state.lan.remoteHost),
+    remotePort: normalizeSyncPort(state.lan.remotePort),
+  };
+  localStorage.setItem(LAN_SYNC_STORAGE_KEY, JSON.stringify(payload));
+}
+
+async function apiJson(path, init = {}) {
+  const response = await fetch(path, {
+    cache: "no-store",
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init.headers || {}),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+function applyLanBackendSnapshot(snapshot) {
+  state.lan.backendReady = true;
+  state.lan.lastError = String(snapshot?.lastError || "");
+  state.lan.enabled = Boolean(snapshot?.enabled);
+  state.lan.mode = ["off", "host", "join"].includes(snapshot?.mode) ? snapshot.mode : state.lan.mode;
+  state.lan.displayName = normalizeSyncName(snapshot?.displayName ?? state.lan.displayName);
+  state.lan.color = normalizeHexColor(snapshot?.color ?? state.lan.color);
+  state.lan.remoteHost = normalizeSyncHost(snapshot?.remoteHost ?? state.lan.remoteHost);
+  state.lan.remotePort = normalizeSyncPort(snapshot?.remotePort ?? state.lan.remotePort);
+  state.lan.transport = safeText(snapshot?.transport, state.lan.transport);
+  state.lan.peers = Array.isArray(snapshot?.peers) ? snapshot.peers : [];
+  reflectLanConfigInputs();
+  applyLocalMarkerAppearance();
+}
+
+async function syncLanConfigToBackend() {
+  const snapshot = await apiJson("/api/lan-sync/config", {
+    method: "POST",
+    body: JSON.stringify({
+      enabled: Boolean(state.lan.enabled),
+      displayName: normalizeSyncName(state.lan.displayName),
+      color: normalizeHexColor(state.lan.color),
+      remoteHost: normalizeSyncHost(state.lan.remoteHost),
+      remotePort: normalizeSyncPort(state.lan.remotePort),
+    }),
+  });
+  applyLanBackendSnapshot(snapshot);
+}
+
+async function fetchLanSyncState() {
+  try {
+    const snapshot = await apiJson("/api/lan-sync/state");
+    applyLanBackendSnapshot(snapshot);
+  } catch (error) {
+    state.lan.backendReady = false;
+    state.lan.peers = [];
+    state.lan.lastError = error.message || "联机后端不可用";
+  }
+  refreshUi();
+}
+
+function startLanSyncPolling() {
+  if (state.lan.pollTimer) {
+    clearInterval(state.lan.pollTimer);
+  }
+  state.lan.pollTimer = window.setInterval(() => {
+    fetchLanSyncState().catch(() => {});
+  }, LAN_SYNC_POLL_MS);
+}
+
+function getLatestCoordinateRecord() {
+  return state.records[state.records.length - 1] || null;
+}
+
+function buildLocalLanPayload(latest, activeMap) {
+  if (!latest) {
+    return {
+      mapId: null,
+      mapName: null,
+      x: null,
+      y: null,
+      z: null,
+      yawDeg: null,
+      raidStatus: state.raid.current.status || null,
+      updatedAt: Date.now(),
+    };
+  }
+  return {
+    mapId: latest.mapId || activeMap?.id || null,
+    mapName: latest.mapName || activeMap?.name || null,
+    x: latest.x,
+    y: latest.y,
+    z: latest.z,
+    yawDeg: latest.yawDeg,
+    raidStatus: state.raid.current.status || null,
+    updatedAt: Date.now(),
+  };
+}
+
+async function publishLanState(latest, activeMap) {
+  if (!state.lan.enabled || !state.lan.backendReady) {
+    return;
+  }
+  const payload = buildLocalLanPayload(latest, activeMap);
+  const signature = JSON.stringify(payload);
+  const now = Date.now();
+  if (signature === state.lan.lastSentSignature && now - state.lan.lastSentAt < LAN_SYNC_MIN_PUBLISH_MS) {
+    return;
+  }
+  state.lan.lastSentSignature = signature;
+  state.lan.lastSentAt = now;
+  try {
+    const snapshot = await apiJson("/api/lan-sync/update", {
+      method: "POST",
+      body: signature,
+    });
+    state.lan.lastPublishedAt = now;
+    if (snapshot?.localState) {
+      applyLanBackendSnapshot(snapshot);
+    }
+  } catch (error) {
+    state.lan.backendReady = false;
+    state.lan.lastError = error.message || "同步位置失败";
+  }
+}
+
+function renderLanSyncPanel() {
+  reflectLanConfigInputs();
+  dom.syncToggleBtn.textContent = state.lan.enabled ? "关闭同步" : "开启同步";
+  const modeText =
+    state.lan.mode === "join"
+      ? `连接模式（${safeText(state.lan.remoteHost, "--")}:${normalizeSyncPort(state.lan.remotePort)}）`
+      : "房主模式（等待队友连接）";
+
+  if (state.lan.lastError) {
+    dom.syncStatus.textContent = `同步状态: ${modeText} / ${state.lan.lastError}`;
+    dom.syncStatus.style.color = "var(--danger)";
+  } else if (!state.lan.enabled) {
+    dom.syncStatus.textContent = "同步状态: 未开启";
+    dom.syncStatus.style.color = "var(--muted)";
+  } else if (!state.lan.backendReady) {
+    dom.syncStatus.textContent = "同步状态: 本机同步服务不可用";
+    dom.syncStatus.style.color = "var(--danger)";
+  } else if (!state.lan.peers.length) {
+    dom.syncStatus.textContent = `同步状态: ${modeText} / 暂无在线队友`;
+    dom.syncStatus.style.color = "var(--warn)";
+  } else {
+    dom.syncStatus.textContent = `同步状态: ${modeText} / 已连接 ${state.lan.peers.length} 名队友`;
+    dom.syncStatus.style.color = "var(--accent)";
+  }
+
+  if (!state.lan.enabled) {
+    dom.syncPeerList.innerHTML = '<div class="sync-empty">开启同步后，会在这里显示已连接的队友。</div>';
+    return;
+  }
+  if (!state.lan.peers.length) {
+    dom.syncPeerList.innerHTML = '<div class="sync-empty">暂无队友在线</div>';
+    return;
+  }
+
+  dom.syncPeerList.innerHTML = state.lan.peers
+    .map((peer) => {
+      const peerState = peer?.state || {};
+      const mapText = safeText(peerState.mapName, "暂无坐标");
+      const raidText = safeText(RAID_STATUS_TEXT[peerState.raidStatus] || peerState.raidStatus, "未知状态");
+      return `
+        <article class="sync-peer-row">
+          <div class="sync-peer-main">
+            <span class="sync-peer-swatch" style="background:${escapeHtml(normalizeHexColor(peer.color))}"></span>
+            <div class="sync-peer-name-block">
+              <span class="sync-peer-name">${escapeHtml(peer.displayName || "队友")}</span>
+              <span class="sync-peer-meta">${escapeHtml(mapText)} / ${escapeHtml(raidText)} / ${escapeHtml(peer.host || "--")}</span>
+            </div>
+          </div>
+          <div class="sync-peer-side">
+            最后更新: ${escapeHtml(formatRelativeAge(peer.lastSeenAt))}
+          </div>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function refreshUi() {
-  const latest = state.records[state.records.length - 1] || null;
-  updateMapPanel(latest);
+  const latest = getLatestCoordinateRecord();
+  updateDirLabels();
+  const activeMap = updateMapPanel(latest);
+  renderRaidInfo(buildRaidSummary(latest, getRaidSummaryMapFallback(latest)));
+  renderLanSyncPanel();
+  renderPeerLayer(activeMap);
+  publishLanState(latest, activeMap).catch(() => {});
 }
 
 function populateMapSelect() {
@@ -716,10 +1390,10 @@ function populateMapSelect() {
   dom.mapSelect.appendChild(autoOption);
 
   for (const map of state.maps) {
-    const opt = document.createElement("option");
-    opt.value = map.id;
-    opt.textContent = map.name;
-    dom.mapSelect.appendChild(opt);
+    const option = document.createElement("option");
+    option.value = map.id;
+    option.textContent = map.name;
+    dom.mapSelect.appendChild(option);
   }
 
   dom.mapSelect.value = state.selectedMapId;
@@ -738,7 +1412,7 @@ async function loadMapMetadata() {
       .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
 
     state.maps = maps;
-    state.mapsById = new Map(maps.map((m) => [m.id, m]));
+    state.mapsById = new Map(maps.map((map) => [map.id, map]));
     populateMapSelect();
     setStatus(`地图元数据已加载: ${maps.length} 张`);
   } catch (error) {
@@ -760,21 +1434,21 @@ async function openDb() {
   });
 }
 
-async function saveHandle(handle) {
+async function saveHandle(key, handle) {
   const db = await openDb();
   await new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).put(handle, HANDLE_KEY);
+    tx.objectStore(STORE_NAME).put(handle, key);
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error);
   });
 }
 
-async function loadHandle() {
+async function loadHandle(key) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
-    const req = tx.objectStore(STORE_NAME).get(HANDLE_KEY);
+    const req = tx.objectStore(STORE_NAME).get(key);
     req.onsuccess = () => resolve(req.result || null);
     req.onerror = () => reject(req.error);
   });
@@ -788,15 +1462,101 @@ async function ensureReadPermission(handle) {
   return (await handle.requestPermission(opts)) === "granted";
 }
 
-async function scanOnce() {
-  if (!state.dirHandle) {
-    setStatus("请先选择截图目录", true);
-    return;
+async function readFileText(handle) {
+  const file = await handle.getFile();
+  return file.text();
+}
+
+function resetRaidLogOffsets() {
+  state.raid.logOffsets.application = 0;
+  state.raid.logOffsets.notifications = 0;
+  state.raid.logLastModified.application = 0;
+  state.raid.logLastModified.notifications = 0;
+}
+
+function resetRaidDerivedState() {
+  state.raid.current = createInitialRaidCurrent();
+  state.raid.events = [];
+  state.raid.lastLogScanAt = null;
+  state.raid.ui.lastUpdatedAt = null;
+}
+
+function setRaidUiError(message = "") {
+  state.raid.ui.error = message;
+}
+
+function parseLogDirectoryStamp(name) {
+  const match = name.match(LOG_DIRECTORY_RE);
+  if (!match?.groups?.stamp) {
+    return null;
+  }
+  const [datePart, timePart] = match.groups.stamp.split("_");
+  if (!datePart || !timePart) {
+    return null;
+  }
+  const [hour = "", minute = "", second = ""] = timePart.split("-");
+  const normalizedStamp = `${datePart.replaceAll(".", "-")}T${hour.padStart(2, "0")}:${minute}:${second}`;
+  const time = new Date(normalizedStamp);
+  return Number.isNaN(time.getTime()) ? null : time.getTime();
+}
+
+async function resolveGameRootPath(gameDirHandle) {
+  if (gameDirHandle?.kind === "directory" && gameDirHandle.name === "Logs") {
+    return gameDirHandle;
+  }
+  const entries = gameDirHandle.entries();
+  for await (const [, handle] of entries) {
+    if (handle.kind === "directory" && handle.name === "Logs") {
+      return gameDirHandle.getDirectoryHandle(handle.name);
+    }
+  }
+  return null;
+}
+
+async function resolveLatestLogPath(logsRootHandle) {
+  const entries = logsRootHandle.entries();
+  let latestHandle = null;
+  let latestTime = -1;
+  for await (const [, handle] of entries) {
+    if (handle.kind !== "directory") {
+      continue;
+    }
+    const stamp = parseLogDirectoryStamp(handle.name);
+    if (stamp !== null && stamp > latestTime) {
+      latestTime = stamp;
+      latestHandle = logsRootHandle.getDirectoryHandle(handle.name);
+    }
+  }
+  return latestHandle;
+}
+
+async function resolveLogFile(logDirHandle, namePart) {
+  const entries = logDirHandle.entries();
+  for await (const [, handle] of entries) {
+    if (handle.kind === "file" && handle.name.includes(namePart)) {
+      return logDirHandle.getFileHandle(handle.name);
+    }
+  }
+  return null;
+}
+
+async function checkGameDirectory(handle) {
+  const logsRoot = await resolveGameRootPath(handle);
+  if (!logsRoot) {
+    return false;
+  }
+  const latestLogDir = await resolveLatestLogPath(logsRoot);
+  return Boolean(latestLogDir);
+}
+
+async function scanScreenshots() {
+  if (!state.screenshotDirHandle) {
+    return 0;
   }
 
   const found = [];
   let skippedNoCoordinate = 0;
-  for await (const [name, handle] of state.dirHandle.entries()) {
+  for await (const [name, handle] of state.screenshotDirHandle.entries()) {
     if (handle.kind !== "file" || !name.toLowerCase().endsWith(".png")) {
       continue;
     }
@@ -821,15 +1581,678 @@ async function scanOnce() {
   state.records.sort((a, b) => a.order - b.order);
   if (state.records.length > MAX_RECORDS) {
     state.records = state.records.slice(-MAX_RECORDS);
-    state.byName = new Map(state.records.map((r) => [r.name, r]));
+    state.byName = new Map(state.records.map((record) => [record.name, record]));
   }
 
-  if (added === 0) {
-    return;
+  if (added > 0) {
+    setStatus(`截图扫描完成: 识别 ${found.length} 张, 新增 ${added} 张, 忽略无坐标 ${skippedNoCoordinate} 张`);
+  }
+  return added;
+}
+
+function parseLogEntry(text) {
+  const match = text.match(
+    /^(?<date>\d{4}-\d{2}-\d{2}) (?<time>\d{2}:\d{2}:\d{2}\.\d{3})(?<tzoffset> ?[+-]\d{2}:\d{2})?\|(?<message>.+?)$/m,
+  );
+  if (!match?.groups) {
+    return null;
+  }
+  const tail = text
+    .split("\n")
+    .slice(1)
+    .join("\n")
+    .trim();
+  return {
+    date: match.groups.date,
+    time: match.groups.time,
+    timeOffset: match.groups.tzoffset?.trim() || "",
+    message: match.groups.message.trim(),
+    json: tail || "",
+    fullText: text,
+  };
+}
+
+function parseLogLines(lines) {
+  const entries = [];
+  let current = "";
+  for (const line of lines) {
+    if (LOG_ENTRY_START_RE.test(line)) {
+      if (current) {
+        const parsed = parseLogEntry(current.trim());
+        if (parsed) {
+          entries.push(parsed);
+        }
+      }
+      current = line;
+    } else if (current) {
+      current += `\n${line}`;
+    }
+  }
+  if (current) {
+    const parsed = parseLogEntry(current.trim());
+    if (parsed) {
+      entries.push(parsed);
+    }
+  }
+  return entries;
+}
+
+function parseEntryTimestamp(entry) {
+  const raw = entry.timeOffset
+    ? `${entry.date}T${entry.time}${entry.timeOffset}`
+    : `${entry.date}T${entry.time}`;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? Date.now() : date.getTime();
+}
+
+function parseProfileLine(message) {
+  const match = message.match(
+    /(?:SelectProfile|PrepareSelectedProfileLocally|CompleteSelectedProfile) ProfileId:(.+?) AccountId:(.+)/i,
+  );
+  if (!match || !match[1] || !match[2]) {
+    return null;
+  }
+  return {
+    profileId: match[1].trim(),
+    accountId: match[2].trim(),
+  };
+}
+
+function parseSessionMode(message) {
+  const match = message.match(/Session mode: (?<mode>\w+)/i);
+  const mode = match?.groups?.mode?.toUpperCase();
+  if (!mode) {
+    return null;
+  }
+  if (mode === "PVE") {
+    return "PVE";
+  }
+  if (mode === "REGULAR") {
+    return "Regular";
+  }
+  return mode;
+}
+
+function getMapInfoFromPreset(preset) {
+  if (!preset) {
+    return { mapId: null, mapName: null };
+  }
+  if (state.mapsById.has(preset)) {
+    return {
+      mapId: preset,
+      mapName: state.mapsById.get(preset).name,
+    };
+  }
+  const mapId = MAP_PRESET_TO_ID[preset] || null;
+  if (mapId && state.mapsById.has(mapId)) {
+    return {
+      mapId,
+      mapName: state.mapsById.get(mapId).name,
+    };
+  }
+  return {
+    mapId,
+    mapName: preset,
+  };
+}
+
+function parseRaidLine(message) {
+  const match = message.match(
+    /'Profileid: (.+?), Status: (.+?), RaidMode: (.+?), Ip: (.+?), Port: (.+?), Location: (.+?), Sid: (.+?), GameMode: (.+?), shortId: (.+?)'/i,
+  );
+  if (!match || match.length < 10) {
+    return null;
+  }
+  const { mapId, mapName } = getMapInfoFromPreset(match[6]);
+  return {
+    profileId: match[1],
+    rawStatus: match[2],
+    raidMode: match[3],
+    serverIp: match[4],
+    serverPort: match[5],
+    location: match[6],
+    sid: match[7],
+    gameMode: match[8],
+    raidId: match[9],
+    mapId,
+    mapName,
+  };
+}
+
+function parseMapLoading(message) {
+  const match = message.match(/scene preset path:maps\/(?<mapBundleName>[a-zA-Z0-9_]+)\.bundle/i);
+  const preset = match?.groups?.mapBundleName;
+  if (!preset) {
+    return null;
+  }
+  const { mapId, mapName } = getMapInfoFromPreset(preset);
+  return {
+    mapPreset: preset,
+    mapId,
+    mapName,
+  };
+}
+
+function parseLocationLoaded(message) {
+  const match = message.match(/LocationLoaded:[0-9.,]+ real:(?<loadTime>[0-9.,]+)/i);
+  const raw = match?.groups?.loadTime;
+  if (!raw) {
+    return null;
+  }
+  const value = Number.parseFloat(raw.replace(",", "."));
+  return Number.isFinite(value) ? { loadTime: value } : null;
+}
+
+function parseMatchingCompleted(message) {
+  const match = message.match(/MatchingCompleted:[0-9.,]+ real:(?<queueTime>[0-9.,]+)/i);
+  const raw = match?.groups?.queueTime;
+  if (!raw) {
+    return null;
+  }
+  const value = Number.parseFloat(raw.replace(",", "."));
+  return Number.isFinite(value) ? { queueTime: value } : null;
+}
+
+function parseNetworkGameCreate(message) {
+  if (!message.includes("application|TRACE-NetworkGameCreate profileStatus")) {
+    return null;
+  }
+  const mapMatch = message.match(/Location: (?<map>[^,]+)/);
+  const raidIdMatch = message.match(/shortId: (?<raidId>[A-Z0-9]{6})/);
+  const preset = mapMatch?.groups?.map;
+  if (!preset || !raidIdMatch?.groups?.raidId) {
+    return null;
+  }
+  const { mapId, mapName } = getMapInfoFromPreset(preset);
+  return {
+    mapId,
+    mapName,
+    location: preset,
+    raidId: raidIdMatch.groups.raidId,
+    online: message.includes("RaidMode: Online"),
+  };
+}
+
+function parseGameStarting(message) {
+  return /application\|GameStarting/i.test(message);
+}
+
+function parseGameStarted(message) {
+  return /application\|GameStarted/i.test(message);
+}
+
+function parseMatchingAborted(message) {
+  return (
+    /application\|Network game matching aborted/i.test(message) ||
+    /application\|Network game matching cancelled/i.test(message)
+  );
+}
+
+function parseUserMatchOver(entry) {
+  if (!entry.message.includes("Got notification | UserMatchOver") || !entry.json) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(entry.json);
+    const { mapId, mapName } = getMapInfoFromPreset(payload?.location);
+    return {
+      location: payload?.location || null,
+      raidId: payload?.shortId || null,
+      mapId,
+      mapName,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parseTaskStatus(entry) {
+  if (!entry.message.includes("Got notification | ChatMessageReceived") || !entry.json) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(entry.json);
+    const type = payload?.message?.type;
+    const templateId = payload?.message?.templateId;
+    if (typeof templateId !== "string") {
+      return null;
+    }
+    const taskId = templateId.trim().split(/\s+/)[0] || null;
+    if (type === TASK_MESSAGE_TYPES.started) {
+      return { status: "Started", taskId };
+    }
+    if (type === TASK_MESSAGE_TYPES.failed) {
+      return { status: "Failed", taskId };
+    }
+    if (type === TASK_MESSAGE_TYPES.finished) {
+      return { status: "Finished", taskId };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function parseFleaMarketInfo(payload) {
+  const message = payload?.message || {};
+  const items = message?.items?.data || [];
+  const systemData = message?.systemData || {};
+  const currencyMap = {
+    "5449016a4bdc2d6f028b456f": "卢布",
+    "5696686a4bdc2da3298b456a": "美元",
+    "569668774bdc2da2298b4568": "欧元",
+  };
+  const receivedItems = items.map((item) => {
+    const currency = currencyMap[item?._tpl] || "未知货币";
+    const count = item?.upd?.StackObjectsCount || 0;
+    return `${count}${currency}`;
+  });
+  return {
+    itemCount: systemData.itemCount || 0,
+    buyerNickname: systemData.buyerNickname || "未知玩家",
+    receivedItems,
+  };
+}
+
+function parseFleaMarketExpired(payload) {
+  const first = payload?.message?.items?.data?.[0];
+  return {
+    expiredItem: first?._tpl || null,
+  };
+}
+
+function parseFleaMarketMessage(entry) {
+  if (!entry.message.includes("Got notification | ChatMessageReceived") || !entry.json) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(entry.json);
+    if (payload?.message?.type !== 4) {
+      return null;
+    }
+    const templateId = payload?.message?.templateId;
+    if (templateId === FLEA_MARKET_SOLD_TEMPLATE) {
+      return {
+        type: "sold",
+        data: parseFleaMarketInfo(payload),
+      };
+    }
+    if (templateId === FLEA_MARKET_EXPIRED_TEMPLATE) {
+      return {
+        type: "expired",
+        data: parseFleaMarketExpired(payload),
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function createRaidEvent(type, title, detail, timestamp, payload = {}) {
+  return {
+    id: `${type}:${timestamp}:${detail}`,
+    type,
+    title,
+    detail,
+    timestamp,
+    payload,
+  };
+}
+
+function extractRaidEvent(entry) {
+  const timestamp = parseEntryTimestamp(entry);
+  const sessionMode = parseSessionMode(entry.message);
+  if (sessionMode) {
+    return createRaidEvent("session_mode", "会话模式", sessionMode, timestamp, { mode: sessionMode });
   }
 
+  const profile = parseProfileLine(entry.message);
+  if (profile) {
+    return createRaidEvent("profile_selected", "角色已选择", profile.profileId, timestamp, profile);
+  }
+
+  const raidLine = parseRaidLine(entry.message);
+  if (raidLine) {
+    return createRaidEvent(
+      "raid_created",
+      "战局已创建",
+      `${safeText(raidLine.mapName)} / ${safeText(raidLine.serverIp, "未知服务器")}`,
+      timestamp,
+      raidLine,
+    );
+  }
+
+  const networkGame = parseNetworkGameCreate(entry.message);
+  if (networkGame) {
+    return createRaidEvent(
+      "network_game_create",
+      "网络战局已创建",
+      `${safeText(networkGame.mapName)} / Raid ${networkGame.raidId}`,
+      timestamp,
+      networkGame,
+    );
+  }
+
+  const queue = parseMatchingCompleted(entry.message);
+  if (queue) {
+    return createRaidEvent(
+      "matching_completed",
+      "匹配完成",
+      `排队耗时 ${formatDuration(queue.queueTime)}`,
+      timestamp,
+      queue,
+    );
+  }
+
+  const mapLoading = parseMapLoading(entry.message);
+  if (mapLoading) {
+    return createRaidEvent(
+      "map_loading",
+      "开始载入地图",
+      safeText(mapLoading.mapName),
+      timestamp,
+      mapLoading,
+    );
+  }
+
+  if (parseGameStarting(entry.message)) {
+    return createRaidEvent("game_starting", "进入战局中", "客户端正在切换到战局", timestamp);
+  }
+
+  const locationLoaded = parseLocationLoaded(entry.message);
+  if (locationLoaded) {
+    return createRaidEvent(
+      "location_loaded",
+      "地图载入完成",
+      `加载耗时 ${formatDuration(locationLoaded.loadTime)}`,
+      timestamp,
+      locationLoaded,
+    );
+  }
+
+  if (parseGameStarted(entry.message)) {
+    return createRaidEvent("game_started", "已进入战局", "战局开始", timestamp);
+  }
+
+  if (parseMatchingAborted(entry.message)) {
+    return createRaidEvent("matching_aborted", "匹配已取消", "本次匹配已中断", timestamp);
+  }
+
+  const matchOver = parseUserMatchOver(entry);
+  if (matchOver) {
+    return createRaidEvent(
+      "user_match_over",
+      "战局结束",
+      matchOver.raidId ? `Raid ${matchOver.raidId}` : "收到战局结束通知",
+      timestamp,
+      matchOver,
+    );
+  }
+
+  const taskStatus = parseTaskStatus(entry);
+  if (taskStatus) {
+    const titleMap = {
+      Started: "任务开始",
+      Failed: "任务失败",
+      Finished: "任务完成",
+    };
+    return createRaidEvent(
+      "task_status",
+      titleMap[taskStatus.status] || "任务状态更新",
+      safeText(taskStatus.taskId, "未知任务"),
+      timestamp,
+      taskStatus,
+    );
+  }
+
+  const fleaMarket = parseFleaMarketMessage(entry);
+  if (fleaMarket) {
+    if (fleaMarket.type === "sold") {
+      return createRaidEvent(
+        "flea_market",
+        "跳蚤售出",
+        `${safeText(fleaMarket.data.buyerNickname)} 购买，收入 ${safeText(
+          fleaMarket.data.receivedItems.join("、"),
+          "--",
+        )}`,
+        timestamp,
+        fleaMarket,
+      );
+    }
+    return createRaidEvent("flea_market", "跳蚤过期", "报价已过期", timestamp, fleaMarket);
+  }
+
+  return null;
+}
+
+function createFreshRaidCurrent(previous) {
+  const next = createInitialRaidCurrent(previous);
+  next.sessionMode = previous.sessionMode || null;
+  next.profileId = previous.profileId || null;
+  next.accountId = previous.accountId || null;
+  if (previous.status === "matching" || previous.status === "loading") {
+    next.matchStartAt = previous.matchStartAt || null;
+    next.queueCompletedAt = previous.queueCompletedAt || null;
+    next.queueDurationSec = previous.queueDurationSec ?? null;
+    next.loadDurationSec = previous.loadDurationSec ?? null;
+  }
+  return next;
+}
+
+function ensureMatchStart(current, timestamp) {
+  if (!current.matchStartAt) {
+    current.matchStartAt = timestamp;
+  }
+}
+
+function reduceRaidState(previousState, raidEvent) {
+  let next = { ...previousState };
+  const { payload, timestamp, type } = raidEvent;
+
+  if (type === "session_mode") {
+    next.sessionMode = payload.mode || next.sessionMode;
+    return next;
+  }
+
+  if (type === "profile_selected") {
+    next.profileId = payload.profileId || next.profileId;
+    next.accountId = payload.accountId || next.accountId;
+    return next;
+  }
+
+  if (type === "raid_created" || type === "network_game_create") {
+    const shouldReset =
+      next.isActive ||
+      next.status === "extracting_or_over" ||
+      next.status === "aborted" ||
+      (payload.raidId && next.raidId && payload.raidId !== next.raidId);
+    if (shouldReset) {
+      next = createFreshRaidCurrent(next);
+    }
+    ensureMatchStart(next, timestamp);
+    next.mapId = payload.mapId || next.mapId;
+    next.mapName = payload.mapName || next.mapName;
+    next.raidId = payload.raidId || next.raidId;
+    next.serverIp = payload.serverIp || next.serverIp;
+    next.serverPort = payload.serverPort || next.serverPort;
+    next.rawStatus = payload.rawStatus || next.rawStatus;
+    next.status = "matching";
+    next.isActive = false;
+    return next;
+  }
+
+  if (type === "matching_completed") {
+    if (next.isActive || next.status === "in_raid" || next.status === "extracting_or_over" || next.status === "aborted") {
+      next = createFreshRaidCurrent(next);
+    }
+    next.queueCompletedAt = timestamp;
+    next.queueDurationSec = payload.queueTime ?? next.queueDurationSec;
+    if (!next.matchStartAt && Number.isFinite(payload.queueTime)) {
+      next.matchStartAt = timestamp - payload.queueTime * 1000;
+    } else {
+      ensureMatchStart(next, timestamp);
+    }
+    next.status = "loading";
+    return next;
+  }
+
+  if (type === "map_loading") {
+    ensureMatchStart(next, timestamp);
+    next.mapId = payload.mapId || next.mapId;
+    next.mapName = payload.mapName || next.mapName;
+    next.status = "loading";
+    return next;
+  }
+
+  if (type === "game_starting") {
+    ensureMatchStart(next, timestamp);
+    next.status = "loading";
+    return next;
+  }
+
+  if (type === "location_loaded") {
+    next.loadDurationSec = payload.loadTime ?? next.loadDurationSec;
+    if (!next.gameStartAt) {
+      next.gameStartAt = timestamp;
+    }
+    return next;
+  }
+
+  if (type === "game_started") {
+    next.gameStartAt = timestamp;
+    next.status = "in_raid";
+    next.isActive = true;
+    next.raidEndAt = null;
+    return next;
+  }
+
+  if (type === "user_match_over") {
+    next.mapId = payload.mapId || next.mapId;
+    next.mapName = payload.mapName || next.mapName;
+    next.raidId = payload.raidId || next.raidId;
+    next.raidEndAt = timestamp;
+    next.status = "extracting_or_over";
+    next.isActive = false;
+    return next;
+  }
+
+  if (type === "matching_aborted") {
+    next.raidEndAt = timestamp;
+    next.status = "aborted";
+    next.isActive = false;
+    return next;
+  }
+
+  return next;
+}
+
+function applyRaidEvent(event) {
+  state.raid.current = reduceRaidState(state.raid.current, event);
+  state.raid.events = [event, ...state.raid.events.filter((existing) => existing.id !== event.id)].slice(
+    0,
+    MAX_RAID_EVENTS,
+  );
+  state.raid.ui.lastUpdatedAt = event.timestamp;
+}
+
+async function resolveRaidLogHandles() {
+  if (!state.raid.gameDirHandle) {
+    state.raid.logDirHandle = null;
+    state.raid.applicationLogHandle = null;
+    state.raid.notificationsLogHandle = null;
+    return false;
+  }
+
+  const logsRoot = await resolveGameRootPath(state.raid.gameDirHandle);
+  if (!logsRoot) {
+    setRaidUiError("未找到 Logs 目录");
+    state.raid.current.status = "error";
+    return false;
+  }
+
+  const latestLogDir = await resolveLatestLogPath(logsRoot);
+  if (!latestLogDir) {
+    setRaidUiError("未找到最新日志目录");
+    state.raid.current.status = "error";
+    return false;
+  }
+
+  const directoryChanged = state.raid.logDirHandle?.name !== latestLogDir.name;
+  state.raid.logDirHandle = latestLogDir;
+  state.raid.applicationLogHandle = await resolveLogFile(latestLogDir, "application");
+  state.raid.notificationsLogHandle = await resolveLogFile(latestLogDir, "notifications");
+  if (directoryChanged) {
+    resetRaidLogOffsets();
+    resetRaidDerivedState();
+  }
+  setRaidUiError("");
+  if (state.raid.current.status === "error") {
+    state.raid.current.status = "idle";
+  }
+  return Boolean(state.raid.applicationLogHandle || state.raid.notificationsLogHandle);
+}
+
+async function scanLogHandle(kind, { fullRescan = false } = {}) {
+  const handle = kind === "application" ? state.raid.applicationLogHandle : state.raid.notificationsLogHandle;
+  if (!handle) {
+    return 0;
+  }
+
+  const file = await handle.getFile();
+  const lastModified = file.lastModified;
+  if (!fullRescan && lastModified <= state.raid.logLastModified[kind]) {
+    return 0;
+  }
+
+  const text = await file.text();
+  const lines = typeof text === "string" ? text.split("\n") : [];
+  const entries = parseLogLines(lines);
+  if (fullRescan || entries.length < state.raid.logOffsets[kind]) {
+    state.raid.logOffsets[kind] = 0;
+  }
+  const stableOffset = state.raid.logOffsets[kind];
+  const startIndex = fullRescan ? 0 : Math.max(0, stableOffset - 1);
+  const newEntries = entries.slice(startIndex);
+  state.raid.logOffsets[kind] = entries.length;
+  state.raid.logLastModified[kind] = lastModified;
+
+  for (const entry of newEntries) {
+    const event = extractRaidEvent(entry);
+    if (event) {
+      applyRaidEvent(event);
+    }
+  }
+  return newEntries.length;
+}
+
+async function scanRaidLogs(options = {}) {
+  if (!state.raid.gameDirHandle) {
+    return 0;
+  }
+
+  const resolved = await resolveRaidLogHandles();
+  if (!resolved) {
+    return 0;
+  }
+
+  let changes = 0;
+  changes += await scanLogHandle("application", options);
+  changes += await scanLogHandle("notifications", options);
+  if (changes > 0 || options.fullRescan) {
+    state.raid.lastLogScanAt = Date.now();
+  }
+  return changes;
+}
+
+async function scanAllSources() {
+  const addedScreenshots = await scanScreenshots();
+  const addedLogEntries = await scanRaidLogs();
   refreshUi();
-  setStatus(`扫描完成: 识别 ${found.length} 张, 新增 ${added} 张, 忽略无坐标 ${skippedNoCoordinate} 张`);
+  return {
+    addedScreenshots,
+    addedLogEntries,
+  };
 }
 
 function stopWatch() {
@@ -838,84 +2261,184 @@ function stopWatch() {
     state.scanTimer = null;
   }
   state.watching = false;
+  state.raid.watchingLogs = false;
   dom.watchBtn.textContent = "开始监听";
+  refreshUi();
 }
 
 function startWatch() {
-  if (!state.dirHandle) {
-    setStatus("请先选择截图目录", true);
+  if (!state.screenshotDirHandle && !state.raid.gameDirHandle) {
+    setStatus("请先选择截图目录或游戏目录", true);
     return;
   }
   const intervalSec = Math.max(1, Number.parseInt(dom.intervalInput.value || "2", 10));
   dom.intervalInput.value = String(intervalSec);
   stopWatch();
+  state.watching = true;
+  state.raid.watchingLogs = Boolean(state.raid.gameDirHandle);
   state.scanTimer = setInterval(() => {
-    scanOnce().catch((error) => {
-      setStatus(`扫描失败: ${error.message}`, true);
+    scanAllSources().catch((error) => {
+      setRaidUiError(error.message || "监听失败");
+      state.raid.current.status = "error";
+      refreshUi();
+      setStatus(`监听失败: ${error.message}`, true);
     });
   }, intervalSec * 1000);
-  state.watching = true;
   dom.watchBtn.textContent = "停止监听";
+  refreshUi();
   setStatus(`监听已开启，间隔 ${intervalSec} 秒`);
 }
 
-async function chooseDirectory() {
+function buildDirectoryPickerOptions(kind) {
+  const options = {
+    mode: "read",
+    id: kind === "screenshot" ? "tarkov-screenshot-dir" : "tarkov-game-dir",
+  };
+  const startHandle = kind === "screenshot" ? state.screenshotDirHandle : state.raid.gameDirHandle;
+  if (startHandle) {
+    options.startIn = startHandle;
+  }
+  return options;
+}
+
+async function openDirectoryPickerWithMemory(kind) {
+  const options = buildDirectoryPickerOptions(kind);
+  try {
+    return await window.showDirectoryPicker(options);
+  } catch (error) {
+    if (error?.name === "TypeError") {
+      return window.showDirectoryPicker({ mode: "read" });
+    }
+    throw error;
+  }
+}
+
+async function chooseScreenshotDirectory() {
   if (!window.showDirectoryPicker) {
     setStatus("当前浏览器不支持目录选择 API", true);
     return;
   }
   try {
-    const handle = await window.showDirectoryPicker({ mode: "read" });
+    const handle = await openDirectoryPickerWithMemory("screenshot");
     const granted = await ensureReadPermission(handle);
     if (!granted) {
       setStatus("目录读取权限未授权", true);
       return;
     }
 
-    state.dirHandle = handle;
-    dom.dirLabel.textContent = handle.name || "已选择目录";
+    state.screenshotDirHandle = handle;
+    updateDirLabels();
     try {
-      await saveHandle(handle);
+      await saveHandle(STORE_KEYS.screenshotDir, handle);
     } catch {
-      setStatus("目录已选择，但浏览器未能持久化句柄");
+      setStatus("截图目录已选择，但浏览器未能持久化句柄");
     }
-    await scanOnce();
+    await scanScreenshots();
+    refreshUi();
   } catch (error) {
     if (error?.name !== "AbortError") {
-      setStatus(`选择目录失败: ${error.message}`, true);
+      setStatus(`选择截图目录失败: ${error.message}`, true);
     }
   }
 }
 
-async function restoreDirectory() {
+async function chooseGameDirectory() {
+  if (!window.showDirectoryPicker) {
+    setStatus("当前浏览器不支持目录选择 API", true);
+    return;
+  }
+  try {
+    const handle = await openDirectoryPickerWithMemory("game");
+    const granted = await ensureReadPermission(handle);
+    if (!granted) {
+      setStatus("目录读取权限未授权", true);
+      return;
+    }
+
+    const valid = await checkGameDirectory(handle);
+    if (!valid) {
+      setStatus("游戏目录无效：未找到 Logs 或最新 log_* 目录", true);
+      return;
+    }
+
+    state.raid.gameDirHandle = handle;
+    resetRaidLogOffsets();
+    updateDirLabels();
+    try {
+      await saveHandle(STORE_KEYS.gameDir, handle);
+    } catch {
+      setStatus("游戏目录已选择，但浏览器未能持久化句柄");
+    }
+    await scanRaidLogs({ fullRescan: true });
+    refreshUi();
+  } catch (error) {
+    if (error?.name !== "AbortError") {
+      setStatus(`选择游戏目录失败: ${error.message}`, true);
+    }
+  }
+}
+
+async function restoreScreenshotDirectory() {
   if (!window.showDirectoryPicker) {
     return;
   }
   try {
-    const saved = await loadHandle();
+    const saved = await loadHandle(STORE_KEYS.screenshotDir);
     if (!saved) {
-      setStatus("未发现历史目录句柄，请手动选择目录");
       return;
     }
     const granted = await ensureReadPermission(saved);
     if (!granted) {
-      setStatus("历史目录权限已失效，请重新选择目录");
+      setStatus("截图目录权限已失效，请重新选择截图目录");
       return;
     }
-    state.dirHandle = saved;
-    dom.dirLabel.textContent = saved.name || "目录已恢复";
-    await scanOnce();
+    state.screenshotDirHandle = saved;
+    await scanScreenshots();
   } catch {
-    setStatus("恢复目录失败，请手动选择目录");
+    setStatus("恢复截图目录失败，请手动选择截图目录");
+  }
+}
+
+async function restoreGameDirectory() {
+  if (!window.showDirectoryPicker) {
+    return;
+  }
+  try {
+    const saved = await loadHandle(STORE_KEYS.gameDir);
+    if (!saved) {
+      return;
+    }
+    const granted = await ensureReadPermission(saved);
+    if (!granted) {
+      setStatus("游戏目录权限已失效，请重新选择游戏目录");
+      return;
+    }
+    const valid = await checkGameDirectory(saved);
+    if (!valid) {
+      setStatus("历史游戏目录无效，请重新选择游戏目录");
+      return;
+    }
+    state.raid.gameDirHandle = saved;
+    resetRaidLogOffsets();
+    await scanRaidLogs({ fullRescan: true });
+  } catch {
+    setStatus("恢复游戏目录失败，请手动选择游戏目录");
   }
 }
 
 function bindEvents() {
   dom.pickDirBtn.addEventListener("click", () => {
-    chooseDirectory().catch((e) => setStatus(`选择目录失败: ${e.message}`, true));
+    chooseScreenshotDirectory().catch((error) => setStatus(`选择截图目录失败: ${error.message}`, true));
+  });
+  dom.pickGameDirBtn.addEventListener("click", () => {
+    chooseGameDirectory().catch((error) => setStatus(`选择游戏目录失败: ${error.message}`, true));
   });
   dom.scanBtn.addEventListener("click", () => {
-    scanOnce().catch((e) => setStatus(`扫描失败: ${e.message}`, true));
+    if (!state.screenshotDirHandle && !state.raid.gameDirHandle) {
+      setStatus("请先选择截图目录或游戏目录", true);
+      return;
+    }
+    scanAllSources().catch((error) => setStatus(`扫描失败: ${error.message}`, true));
   });
   dom.watchBtn.addEventListener("click", () => {
     if (state.watching) {
@@ -928,6 +2451,66 @@ function bindEvents() {
   dom.mapSelect.addEventListener("change", () => {
     state.selectedMapId = dom.mapSelect.value || AUTO_MAP_ID;
     refreshUi();
+  });
+  dom.raidToggleBtn.addEventListener("click", () => {
+    state.raid.ui.expanded = !state.raid.ui.expanded;
+    refreshUi();
+  });
+  dom.syncToggleBtn.addEventListener("click", () => {
+    state.lan.enabled = !state.lan.enabled;
+    persistLanSyncConfig();
+    syncLanConfigToBackend()
+      .then(() => refreshUi())
+      .catch((error) => {
+        state.lan.backendReady = false;
+        state.lan.lastError = error.message || "切换同步失败";
+        refreshUi();
+      });
+  });
+  dom.syncNameInput.addEventListener("change", () => {
+    state.lan.displayName = normalizeSyncName(dom.syncNameInput.value);
+    persistLanSyncConfig();
+    syncLanConfigToBackend()
+      .then(() => refreshUi())
+      .catch((error) => {
+        state.lan.backendReady = false;
+        state.lan.lastError = error.message || "同步名称失败";
+        refreshUi();
+      });
+  });
+  dom.syncColorInput.addEventListener("input", () => {
+    state.lan.color = normalizeHexColor(dom.syncColorInput.value);
+    persistLanSyncConfig();
+    applyLocalMarkerAppearance();
+    syncLanConfigToBackend()
+      .then(() => refreshUi())
+      .catch((error) => {
+        state.lan.backendReady = false;
+        state.lan.lastError = error.message || "同步颜色失败";
+        refreshUi();
+      });
+  });
+  dom.syncRemoteHostInput.addEventListener("change", () => {
+    state.lan.remoteHost = normalizeSyncHost(dom.syncRemoteHostInput.value);
+    persistLanSyncConfig();
+    syncLanConfigToBackend()
+      .then(() => refreshUi())
+      .catch((error) => {
+        state.lan.backendReady = false;
+        state.lan.lastError = error.message || "同步远端地址失败";
+        refreshUi();
+      });
+  });
+  dom.syncRemotePortInput.addEventListener("change", () => {
+    state.lan.remotePort = normalizeSyncPort(dom.syncRemotePortInput.value, state.lan.remotePort);
+    persistLanSyncConfig();
+    syncLanConfigToBackend()
+      .then(() => refreshUi())
+      .catch((error) => {
+        state.lan.backendReady = false;
+        state.lan.lastError = error.message || "同步远端端口失败";
+        refreshUi();
+      });
   });
 
   const toggleBindings = [
@@ -984,14 +2567,28 @@ function bindEvents() {
 }
 
 async function boot() {
+  loadLanSyncConfig();
   bindEvents();
   resetMapZoom();
+  reflectLanConfigInputs();
+  applyLocalMarkerAppearance();
+  updateDirLabels();
+  renderRaidInfo(createInitialRaidSummary());
+  renderLanSyncPanel();
   await loadMapMetadata();
-  refreshUi();
-  await restoreDirectory();
+  await syncLanConfigToBackend().catch((error) => {
+    state.lan.backendReady = false;
+    state.lan.lastError = error.message || "联机服务初始化失败";
+  });
+  startLanSyncPolling();
+  await restoreScreenshotDirectory();
+  await restoreGameDirectory();
   refreshUi();
 }
 
 boot().catch((error) => {
+  setRaidUiError(error.message || "初始化失败");
+  state.raid.current.status = "error";
+  refreshUi();
   setStatus(`初始化失败: ${error.message}`, true);
 });

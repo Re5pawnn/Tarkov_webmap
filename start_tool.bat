@@ -7,24 +7,30 @@ set "APP_ROOT=%~dp0"
 set "LAUNCHER=%APP_ROOT%launcher.py"
 set "BUNDLED_HOME=%APP_ROOT%runtime\python"
 set "BUNDLED_PY=%BUNDLED_HOME%\python.exe"
+set "ERR_CODE=0"
 
 if not exist "%LAUNCHER%" (
-  echo [错误] 未找到 launcher.py：%LAUNCHER%
+  echo [ERROR] launcher.py not found: %LAUNCHER%
   pause
   exit /b 1
 )
 
-call :run_bundled %*
-if not errorlevel 1 goto :ok
-set "ERR_CODE=%errorlevel%"
-echo [警告] 内置 Python 启动失败，错误码：%ERR_CODE%
-echo [提示] 正在尝试系统 Python...
+if exist "%BUNDLED_PY%" (
+  call :run_bundled %*
+  if not errorlevel 1 goto :ok
+  set "ERR_CODE=%errorlevel%"
+  echo [WARN] Bundled Python failed with code: %ERR_CODE%
+  echo [INFO] Trying system Python...
+) else (
+  echo [INFO] Bundled Python not found, trying system Python...
+)
 
 call :run_system %*
 if not errorlevel 1 goto :ok
 set "ERR_CODE=%errorlevel%"
-echo [错误] 启动失败，错误码：%ERR_CODE%
-echo [提示] 请把此窗口报错内容发给开发者排查。
+echo [ERROR] Startup failed with code: %ERR_CODE%
+echo [INFO] For source run, install Python 3.10+.
+echo [INFO] For installer run, ensure runtime\python exists.
 pause
 exit /b %ERR_CODE%
 
