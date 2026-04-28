@@ -1,33 +1,52 @@
-﻿[Setup]
-AppId={{9AE14130-FA4E-4468-867F-5C7165B0F6E2}
-AppName=塔科夫地图定位工具
-AppVersion=1.0.0
-AppPublisher=TarkovMapLocator
-DefaultDirName={localappdata}\TarkovMapLocator
-DefaultGroupName=塔科夫地图定位工具
-OutputDir=..\release
+#define MyAppName "TarkovMapLocator"
+#define MyAppVersion "1.2.0"
+#define MyAppPublisher "Re5pawnn"
+#define MyAppURL "https://github.com/Re5pawnn/Tarkov_webmap"
+#define MyAppLauncher "start_tool.bat"
+
+[Setup]
+AppId={{A3E3D2D1-77EF-4D33-8A31-B8E77EA1A4F2}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
+AppUpdatesURL={#MyAppURL}
+DefaultDirName={autopf}\{#MyAppName}
+DisableDirPage=no
+UsePreviousAppDir=no
+DisableProgramGroupPage=yes
+OutputDir={#SourcePath}\dist
 OutputBaseFilename=TarkovMapLocator
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-PrivilegesRequired=lowest
-DisableProgramGroupPage=no
+PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+UninstallDisplayIcon={app}\{#MyAppLauncher}
 
 [Languages]
-Name: "chinesesimp"; MessagesFile: "ChineseSimplified.isl"
+Name: "chinesesimplified"; MessagesFile: "{#SourcePath}\ChineseSimplified.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务："; Flags: unchecked
+Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务:"; Flags: unchecked
 
 [Files]
-Source: "..\release_payload\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "{#SourcePath}\..\app.js"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}\..\index.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}\..\styles.css"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}\..\launcher.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}\..\start_tool.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}\..\maps_detail.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}\..\maps_list.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}\..\使用方法.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}\..\runtime\python\*"; DestDir: "{app}\runtime\python"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\启动 塔科夫地图定位工具"; Filename: "{app}\start_tool.bat"
-Name: "{group}\卸载 塔科夫地图定位工具"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\TarkovMapLocator"; Filename: "{app}\start_tool.bat"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppLauncher}"; WorkingDir: "{app}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppLauncher}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\start_tool.bat"; Description: "立即启动 塔科夫地图定位工具"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppLauncher}"; Description: "立即启动工具"; Flags: nowait postinstall skipifsilent
