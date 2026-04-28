@@ -9,122 +9,160 @@
   <body>
     <div class="backdrop"></div>
     <main class="app">
-      <header class="hero panel">
-        <p class="eyebrow">本地原型</p>
-        <h1>塔科夫地图定位</h1>
-        <p class="sub">监听截图目录并自动解析坐标，在地图上显示位置、朝向和点位图标。</p>
-      </header>
+      <nav class="main-tabs" aria-label="主功能切换">
+        <button id="mapTabBtn" class="main-tab is-active" type="button" data-view="map">地图</button>
+        <button id="taskTabBtn" class="main-tab" type="button" data-view="tasks">任务</button>
+      </nav>
 
-      <section class="panel controls">
-        <div class="control-row">
-          <button id="pickDirBtn" class="btn btn-primary">选择截图目录</button>
-          <button id="pickGameDirBtn" class="btn">选择游戏目录</button>
-          <button id="scanBtn" class="btn">立即扫描</button>
-          <button id="watchBtn" class="btn btn-accent">开始监听</button>
-        </div>
-        <div class="control-row">
-          <label class="interval-label" for="intervalInput">轮询间隔(秒)</label>
-          <input id="intervalInput" class="interval-input" type="number" min="1" max="30" value="2" />
-          <label class="interval-label" for="mapSelect">地图</label>
-          <select id="mapSelect"></select>
-          <span id="dirLabel" class="dir-label">截图目录: 未选择</span>
-          <span id="gameDirLabel" class="dir-label">游戏目录: 未选择</span>
-        </div>
-        <div class="control-row">
-          <span id="mapStatus" class="mono">地图状态: 未加载</span>
-          <span id="poiCount" class="mono">0 个点位</span>
-        </div>
-        <p class="hint">请通过 <code>http://localhost</code> 或 <code>https</code> 打开页面。</p>
-        <p id="status" class="status">状态: 等待初始化</p>
-      </section>
-
-      <section class="panel live-map-panel">
-        <div class="overlay-controls">
-          <label><input id="toggleExtracts" type="checkbox" checked /> 撤离点</label>
-          <label><input id="toggleSpawnPmc" type="checkbox" checked /> PMC出生</label>
-          <label><input id="toggleSpawnScav" type="checkbox" checked /> Scav出生</label>
-          <label><input id="toggleSpawnBoss" type="checkbox" checked /> Boss刷新</label>
-          <label><input id="toggleSpawnSniper" type="checkbox" checked /> 狙击Scav</label>
-          <label><input id="toggleSpawnRogue" type="checkbox" checked /> Bot PMC</label>
-          <label><input id="toggleLocks" type="checkbox" checked /> 钥匙门</label>
-          <label><input id="toggleSwitches" type="checkbox" checked /> 开关</label>
-          <label><input id="toggleHazards" type="checkbox" checked /> 危险区</label>
-          <label><input id="toggleStationary" type="checkbox" checked /> 固定武器</label>
-          <label><input id="toggleBtr" type="checkbox" checked /> BTR停靠点</label>
-          <label><input id="toggleTransits" type="checkbox" checked /> 转移点</label>
-        </div>
-
-        <div class="map-viewport" id="mapViewport">
-          <div id="mapCanvas" class="map-canvas">
-            <img id="mapImage" alt="map image" />
-            <div id="poiLayer" class="poi-layer"></div>
-            <div id="peerLayer" class="peer-layer"></div>
-            <div id="mapMarker" class="map-marker"></div>
-            <div id="mapArrow" class="map-arrow"></div>
-            <div id="mapSelfName" class="map-self-name"></div>
+      <div id="mapView" class="app-view">
+        <section class="panel controls">
+          <div class="control-row">
+            <button id="pickDirBtn" class="btn btn-primary">选择截图目录</button>
+            <button id="pickGameDirBtn" class="btn">选择Log目录</button>
+            <button id="scanBtn" class="btn">立即扫描</button>
+            <button id="watchBtn" class="btn btn-accent">开始监听</button>
           </div>
-          <div id="mapNoData" class="map-no-data">暂无地图数据</div>
-        </div>
-
-        <section id="raidInfoBar" class="raid-info-bar panel panel-inner">
-          <div class="raid-info-summary-wrap">
-            <div id="raidSummary" class="raid-info-summary"></div>
-            <button id="raidToggleBtn" class="btn raid-toggle-btn" type="button" aria-expanded="false">
-              展开详情
-            </button>
+          <div class="control-row">
+            <label class="interval-label" for="intervalInput">轮询间隔(秒)</label>
+            <input id="intervalInput" class="interval-input" type="number" min="1" max="30" value="2" />
+            <label class="interval-label" for="mapSelect">地图</label>
+            <select id="mapSelect"></select>
+            <span id="dirLabel" class="dir-label">未选择</span>
+            <span id="gameDirLabel" class="dir-label">未选择</span>
           </div>
-          <div id="raidDetails" class="raid-info-details" hidden>
-            <div class="raid-info-grid">
-              <section class="raid-card">
-                <h2>当前战局</h2>
-                <div id="raidCurrentInfo" class="raid-detail-list"></div>
-              </section>
-              <section class="raid-card">
-                <h2>关键计时</h2>
-                <div id="raidTimingInfo" class="raid-detail-list"></div>
-              </section>
-              <section class="raid-card raid-events-card">
-                <h2>最近事件</h2>
-                <div id="raidEvents" class="raid-events"></div>
-              </section>
+          <div class="control-row">
+            <span id="mapStatus" class="mono">地图状态: 未加载</span>
+            <span id="poiCount" class="mono">0 个点位</span>
+          </div>
+          <p id="status" class="status">状态: 等待初始化</p>
+        </section>
+
+        <section class="panel live-map-panel">
+          <div class="overlay-controls">
+            <label><input id="toggleExtracts" type="checkbox" checked /> 撤离点</label>
+            <label><input id="toggleSpawnPmc" type="checkbox" checked /> PMC出生</label>
+            <label><input id="toggleSpawnScav" type="checkbox" checked /> Scav出生</label>
+            <label><input id="toggleSpawnBoss" type="checkbox" checked /> Boss刷新</label>
+            <label><input id="toggleSpawnSniper" type="checkbox" checked /> 狙击Scav</label>
+            <label><input id="toggleSpawnRogue" type="checkbox" checked /> Rogue/Bot PMC</label>
+            <label><input id="toggleLocks" type="checkbox" checked /> 锁门</label>
+            <label><input id="toggleSwitches" type="checkbox" checked /> 开关</label>
+            <label><input id="toggleHazards" type="checkbox" checked /> 危险区</label>
+            <label><input id="toggleStationary" type="checkbox" checked /> 固定武器</label>
+            <label><input id="toggleBtr" type="checkbox" checked /> BTR停靠点</label>
+            <label><input id="toggleTransits" type="checkbox" checked /> 转移点</label>
+          </div>
+
+          <div class="map-viewport" id="mapViewport">
+            <div id="mapCanvas" class="map-canvas">
+              <img id="mapImage" alt="map image" />
+              <div id="poiLayer" class="poi-layer"></div>
+              <div id="peerLayer" class="peer-layer"></div>
+              <div id="mapMarker" class="map-marker"></div>
+              <div id="mapArrow" class="map-arrow"></div>
+              <div id="mapSelfName" class="map-self-name"></div>
+            </div>
+            <div id="mapNoData" class="map-no-data">暂无地图数据</div>
+          </div>
+
+          <section id="raidInfoBar" class="raid-info-bar panel panel-inner">
+            <div class="raid-info-summary-wrap">
+              <div id="raidSummary" class="raid-info-summary"></div>
+              <button id="raidToggleBtn" class="btn raid-toggle-btn" type="button" aria-expanded="false">
+                展开详情
+              </button>
+            </div>
+            <div id="raidDetails" class="raid-info-details" hidden>
+              <div class="raid-info-grid">
+                <section class="raid-card">
+                  <h2>当前战局</h2>
+                  <div id="raidCurrentInfo" class="raid-detail-list"></div>
+                </section>
+                <section class="raid-card">
+                  <h2>关键计时</h2>
+                  <div id="raidTimingInfo" class="raid-detail-list"></div>
+                </section>
+                <section class="raid-card raid-events-card">
+                  <h2>最近事件</h2>
+                  <div id="raidEvents" class="raid-events"></div>
+                </section>
+              </div>
+            </div>
+          </section>
+
+          <section id="syncPanel" class="sync-panel panel panel-inner">
+            <div class="sync-panel-head">
+              <div>
+                <h2>队友同步</h2>
+                <p class="sync-panel-sub">运行樱花穿透为房主</p>
+              </div>
+              <div class="sync-panel-actions">
+                <button id="syncModeBtn" class="btn" type="button">切换到连接模式</button>
+                <button id="syncToggleBtn" class="btn btn-primary" type="button">开启同步</button>
+              </div>
+            </div>
+            <div class="sync-panel-controls">
+              <label class="sync-field">
+                <span>显示名称</span>
+                <input id="syncNameInput" type="text" maxlength="24" placeholder="输入你的名称" />
+              </label>
+              <label class="sync-field sync-field-color">
+                <span>标记颜色</span>
+                <input id="syncColorInput" type="color" value="#4fd1ff" />
+              </label>
+              <div id="syncRemoteGroup" class="sync-remote-group">
+                <label class="sync-field">
+                  <span>远端地址（连接模式）</span>
+                  <input id="syncRemoteHostInput" type="text" maxlength="128" placeholder="例如 frp.example.com" />
+                </label>
+                <label class="sync-field sync-field-port">
+                  <span>远端端口</span>
+                  <input id="syncRemotePortInput" type="number" min="1" max="65535" value="" placeholder="默认39247，可留空" />
+                </label>
+              </div>
+            </div>
+            <div class="sync-panel-status-row">
+              <span id="syncStatus" class="mono">同步状态: 未开启</span>
+            </div>
+            <div id="syncPeerList" class="sync-peer-list">
+              <div class="sync-empty">暂无队友在线</div>
+            </div>
+          </section>
+        </section>
+      </div>
+
+      <div id="taskView" class="app-view" hidden>
+        <section class="panel tasks-panel" aria-label="task video">
+          <div class="tasks-layout">
+            <aside class="task-sidebar" aria-label="商人列表">
+              <h2>商人任务</h2>
+              <div id="taskTraderList" class="task-trader-list"></div>
+            </aside>
+            <div class="task-video-pane">
+              <div id="taskVideoWrap" class="task-video-wrap">
+                <iframe
+                  id="taskVideoFrame"
+                  class="task-video-frame"
+                  src="https://player.bilibili.com/player.html?isOutside=true&aid=216381898&bvid=BV1na411T7rk&cid=786335492&p=1&quality=720p"
+                  title="Bilibili Task Video"
+                  scrolling="no"
+                  border="0"
+                  frameborder="no"
+                  framespacing="0"
+                  loading="lazy"
+                  allowfullscreen
+                  referrerpolicy="no-referrer-when-downgrade"
+                ></iframe>
+              </div>
+              <p id="taskVideoTip" class="task-video-tip">请用空格控制暂停播放 点击视频画面会跳转至b站</p>
+              <div id="taskLinkCard" class="task-link-card" hidden>
+                <p id="taskLinkTitle" class="task-link-title">当前任务链接</p>
+                <a id="taskLinkAnchor" class="task-link-anchor" href="#" target="_blank" rel="noopener noreferrer">打开任务链接</a>
+              </div>
             </div>
           </div>
         </section>
-
-        <section id="syncPanel" class="sync-panel panel panel-inner">
-          <div class="sync-panel-head">
-            <div>
-              <h2>队友同步（Sakura FRP）</h2>
-              <p class="sync-panel-sub">留空远端地址即房主模式；填写远端地址即连接模式。</p>
-            </div>
-            <button id="syncToggleBtn" class="btn btn-primary" type="button">开启同步</button>
-          </div>
-          <div class="sync-panel-controls">
-            <label class="sync-field">
-              <span>显示名称</span>
-              <input id="syncNameInput" type="text" maxlength="24" placeholder="输入你的名称" />
-            </label>
-            <label class="sync-field sync-field-color">
-              <span>标记颜色</span>
-              <input id="syncColorInput" type="color" value="#4fd1ff" />
-            </label>
-            <label class="sync-field">
-              <span>远端地址（连接模式）</span>
-              <input id="syncRemoteHostInput" type="text" maxlength="128" placeholder="例如 frp.example.com" />
-            </label>
-            <label class="sync-field sync-field-port">
-              <span>远端端口</span>
-              <input id="syncRemotePortInput" type="number" min="1" max="65535" value="39247" />
-            </label>
-          </div>
-          <div class="sync-panel-status-row">
-            <span id="syncStatus" class="mono">同步状态: 未开启</span>
-          </div>
-          <div id="syncPeerList" class="sync-peer-list">
-            <div class="sync-empty">暂无队友在线</div>
-          </div>
-        </section>
-      </section>
+      </div>
     </main>
 
     <script type="module" src="./app.js"></script>

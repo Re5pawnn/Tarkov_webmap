@@ -388,7 +388,12 @@ class FrpSyncService:
     def apply_config(self) -> None:
         mode = self.state.mode()
         if mode == "host":
-            self._ensure_host_server(self.state.get_host_port())
+            port = self.state.get_host_port()
+            try:
+                self._ensure_host_server(port)
+            except OSError as exc:
+                self.state.set_last_error(f"房主同步端口 {port} 启动失败: {exc}")
+                return
             self.state.clear_last_error()
             return
         self._stop_host_server()
