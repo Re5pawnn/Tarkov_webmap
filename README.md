@@ -3,6 +3,7 @@
 - Windows 10/11
 - Python 3.10+（内置了python 但最好还是安装一个）
 - 浏览器需支持File System Access API
+- 樱花穿透（如果你想共享位置的话)
 ## 地图使用方法  
 - exe安装
 - 安装后会在桌面创建快捷方式
