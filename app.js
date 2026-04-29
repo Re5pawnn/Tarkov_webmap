@@ -1,4 +1,4 @@
-const SCREENSHOT_RE =
+﻿const SCREENSHOT_RE =
   /^(?<date>\d{4}-\d{2}-\d{2})\[(?<hour>\d{2})-(?<minute>\d{2})\]_(?<x>-?\d+(?:\.\d+)?),\s*(?<y>-?\d+(?:\.\d+)?),\s*(?<z>-?\d+(?:\.\d+)?)_(?<qx>-?\d+(?:\.\d+)?),\s*(?<qy>-?\d+(?:\.\d+)?),\s*(?<qz>-?\d+(?:\.\d+)?),\s*(?<qw>-?\d+(?:\.\d+)?)_(?<scale>-?\d+(?:\.\d+)?)(?:\s*\((?<index>\d+)\))?\.png$/i;
 const LOG_DIRECTORY_RE = /^log_(?<stamp>\d{4}\.\d{2}\.\d{2}_\d{1,2}-\d{2}-\d{2})_(?<suffix>[0-9.]+)$/i;
 const LOG_ENTRY_START_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}(?: ?[+-]\d{2}:\d{2})?\|/;
@@ -18,6 +18,8 @@ const LAN_SYNC_POLL_MS = 1500;
 const LAN_SYNC_MIN_PUBLISH_MS = 900;
 const LAN_SYNC_DEFAULT_COLOR = "#4fd1ff";
 const LAN_SYNC_DEFAULT_PORT = 39247;
+const LAN_SYNC_REMOTE_REQUIRED_MESSAGE = "连接模式需要填写远端地址";
+const LAN_SYNC_REMOTE_PORT_REQUIRED_MESSAGE = "连接模式需要填写远端端口";
 const POI_EDGE_TOLERANCE = 0.02;
 const ICON_BASE = "https://cdn.kaedeori.com/uploads/tarkov/map-icons";
 const FLEA_MARKET_SOLD_TEMPLATE = "5bdabfb886f7743e152e867e 0";
@@ -26,6 +28,68 @@ const TASK_MESSAGE_TYPES = {
   started: 10,
   failed: 11,
   finished: 12,
+};
+const TASK_TRADER_SLOT_COUNT = 9;
+const TASK_TRADER_RAW_DATA = {
+  Prapor: `打靶训练 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=792884338&bvid=BV1RC4y1q7mk&cid=34648490118&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+首秀 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=770608182&bvid=BV1nr4y1u7A6&cid=761410348&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+奢靡人生 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=580748626&bvid=BV1B64y1E7X6&cid=34657470472&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+背景调查 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=300997943&bvid=BV1QF411N7pY&cid=772600757&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+硝烟野餐 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=1952094121&bvid=BV1nC41187wK&cid=1477510629&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+搜索任务 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=598125634&bvid=BV1vB4y1i7eU&cid=764952948&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+往事速递 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=770933893&bvid=BV1Nr4y1J7vh&cid=34808204388&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+石油存储 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=983537527&bvid=BV1xt4y1t7ZS&cid=776510804&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+引路先驱 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=115719370967035&bvid=BV1Y9m6BsE25&cid=34742013317&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+罪证 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=216381898&bvid=BV1na411T7rk&cid=786335492&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+蛋卷冰淇淋 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=344029852&bvid=BV1fd4y1K7ex&cid=789600332&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+地堡1 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=942095409&bvid=BV19W4y1h7ph&cid=804516558&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+邮递员派特1＆2 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=259023726&bvid=BV1ta411Z7tt&cid=28721680142&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+占有者 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=113089206813859&bvid=BV1jqHSe7EsY&cid=25759386010&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+polikhim流浪汉 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=396333804&bvid=BV1Go4y1B7hi&cid=1063403229&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+掷弹兵 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=1155116711&bvid=BV1sZ421W75Z&cid=1564802727&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+无意冒犯 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=1002924379&bvid=BV1wx4y1e7up&cid=1498479265&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+大客户 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=323119440&bvid=BV1yw411s7Ct&cid=1323976547&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+探囊取物 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=217681908&bvid=BV1Ea411376k&cid=822327527&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+地堡2 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=984733874&bvid=BV1ot4y1J7oU&cid=808065355&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+一信之缘 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=224882987&bvid=BV1mb41197m1&cid=1022008227&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+惩罚者1 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=560732934&bvid=BV1ve4y1t7Ja&cid=837573586&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+叛无所依 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=113357558383588&bvid=BV1a41cYVEsy&cid=26432180172&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+苏共之辉1 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=961637172&bvid=BV1KH4y1Z7Uc&cid=1286624527&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+惩罚者2 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=388125380&bvid=BV1ad4y1674T&cid=837702370&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+踩点行动 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=1353548369&bvid=BV1ez42167TZ&cid=1516481014&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+小菜一碟1＆2 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=1706140206&bvid=BV1jT421k7uX&cid=1610432476&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+多鱼之漏 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=113374151050358&bvid=BV1on1xYWEsu&cid=26476612703&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+特别联络 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=114185094562926&bvid=BV1fCXJYfEB6&cid=28939718020&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+惩罚者3 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=560938605&bvid=BV1qe4y1b7US&cid=844344991&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+绿色通道 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=918305584&bvid=BV1ku4y1t7MU&cid=1329760080&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+惩罚者4 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=1902783937&bvid=BV1cm4116744&cid=1501992564&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+惩罚者5 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=1102754837&bvid=BV1bA4m1w7r5&cid=1501992568&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+货运延误1 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=115748982752653&bvid=BV1AhBABVEYv&cid=34852310897&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+半满半空 https://www.eftarkov.com/news/63.html
+横插一杠 https://www.eftarkov.com/news/64.html
+麻醉 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=794006792&bvid=BV1DC4y1C75X&cid=1414553696&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+惩罚者6 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=1403501072&bvid=BV1Zr421G777&cid=1516473858&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+不容置问 https://www.eftarkov.com/news/4907.html
+出警商场 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=1104679018&bvid=BV1Qw4m1S7xa&cid=1544108680&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+出警检票 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=1355032871&bvid=BV1wz421a7MG&cid=1560585781&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+出警巡逻 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=1955012055&bvid=BV1oy411a7z1&cid=1563332170&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+苏共之辉2 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=449182153&bvid=BV1Mj411b7sv&cid=1287797550&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+屋顶战神 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=578271344&bvid=BV1Sz4y1P7KU&cid=1329785725&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+财不外露 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=283827040&bvid=BV1tc41147hA&cid=34659110712&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+管制材料 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=833318562&bvid=BV1Yg4y197vB&cid=1329740643&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+最好的差事 https://www.eftarkov.com/news/25.html
+占山为王 https://www.eftarkov.com/news/42.html
+试驾1 https://www.eftarkov.com/news/29.html
+试驾2 https://www.eftarkov.com/news/30.html
+试驾3 https://www.eftarkov.com/news/31.html
+试驾4 https://www.eftarkov.com/news/50.html
+艺术就是爆炸 https://www.eftarkov.com/news/65.html
+试驾5 https://www.eftarkov.com/news/57.html
+试驾6 https://www.eftarkov.com/news/60.html
+左右逢源 https://www.eftarkov.com/news/32.html
+掠地攻城 <iframe src="//player.bilibili.com/player.html?isOutside=true&aid=1955007595&bvid=BV1dy411a7sY&cid=1560592601&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+恐吓者 https://www.eftarkov.com/news/38.html
+护送 https://www.eftarkov.com/news/39.html`,
 };
 const MAP_PRESET_TO_ID = {
   TarkovStreets: "5714dc692459777137212e12",
@@ -54,6 +118,17 @@ const RAID_STATUS_TEXT = {
 const $ = (selector) => document.querySelector(selector);
 
 const dom = {
+  mapTabBtn: $("#mapTabBtn"),
+  taskTabBtn: $("#taskTabBtn"),
+  mapView: $("#mapView"),
+  taskView: $("#taskView"),
+  taskTraderList: $("#taskTraderList"),
+  taskVideoWrap: $("#taskVideoWrap"),
+  taskVideoFrame: $("#taskVideoFrame"),
+  taskVideoTip: $("#taskVideoTip"),
+  taskLinkCard: $("#taskLinkCard"),
+  taskLinkTitle: $("#taskLinkTitle"),
+  taskLinkAnchor: $("#taskLinkAnchor"),
   pickDirBtn: $("#pickDirBtn"),
   pickGameDirBtn: $("#pickGameDirBtn"),
   scanBtn: $("#scanBtn"),
@@ -82,9 +157,11 @@ const dom = {
   raidEvents: $("#raidEvents"),
   raidToggleBtn: $("#raidToggleBtn"),
   syncPanel: $("#syncPanel"),
+  syncModeBtn: $("#syncModeBtn"),
   syncToggleBtn: $("#syncToggleBtn"),
   syncNameInput: $("#syncNameInput"),
   syncColorInput: $("#syncColorInput"),
+  syncRemoteGroup: $("#syncRemoteGroup"),
   syncRemoteHostInput: $("#syncRemoteHostInput"),
   syncRemotePortInput: $("#syncRemotePortInput"),
   syncStatus: $("#syncStatus"),
@@ -145,16 +222,12 @@ function createInitialRaidState() {
     logDirHandle: null,
     applicationLogHandle: null,
     notificationsLogHandle: null,
+    applicationLogHandles: [],
+    notificationsLogHandles: [],
     watchingLogs: false,
     lastLogScanAt: null,
-    logOffsets: {
-      application: 0,
-      notifications: 0,
-    },
-    logLastModified: {
-      application: 0,
-      notifications: 0,
-    },
+    logOffsets: {},
+    logLastModified: {},
     current: createInitialRaidCurrent(),
     events: [],
     summary: createInitialRaidSummary(),
@@ -172,7 +245,8 @@ function createInitialLanState() {
     displayName: "本机玩家",
     color: LAN_SYNC_DEFAULT_COLOR,
     remoteHost: "",
-    remotePort: LAN_SYNC_DEFAULT_PORT,
+    remotePort: "",
+    syncMode: "host",
     mode: "off",
     transport: "frp-tcp",
     peers: [],
@@ -194,6 +268,7 @@ const state = {
   maps: [],
   mapsById: new Map(),
   selectedMapId: AUTO_MAP_ID,
+  lastRaidAutoMapId: "",
   currentMapImageSrc: null,
   layerToggles: {
     extracts: true,
@@ -225,9 +300,238 @@ const state = {
   lan: createInitialLanState(),
 };
 
+const VIEW_SWITCH_ANIM_MS = 260;
+let viewSwitchTimer = null;
+let currentMainView = "map";
+const taskState = {
+  traders: [],
+  taskByKey: new Map(),
+  selectedTaskKey: "",
+};
+
 function setStatus(message, isError = false) {
   dom.status.textContent = `状态: ${message}`;
   dom.status.style.color = isError ? "var(--danger)" : "var(--accent)";
+}
+
+function setMainView(view, options = {}) {
+  const activeView = view === "tasks" ? "tasks" : "map";
+  const instant = Boolean(options.instant);
+  if (viewSwitchTimer) {
+    clearTimeout(viewSwitchTimer);
+    viewSwitchTimer = null;
+  }
+
+  dom.mapView.hidden = activeView !== "map";
+  dom.taskView.hidden = activeView !== "tasks";
+  document.body.classList.toggle("task-view-active", activeView === "tasks");
+  dom.mapTabBtn.classList.toggle("is-active", activeView === "map");
+  dom.taskTabBtn.classList.toggle("is-active", activeView === "tasks");
+  dom.mapTabBtn.setAttribute("aria-selected", activeView === "map" ? "true" : "false");
+  dom.taskTabBtn.setAttribute("aria-selected", activeView === "tasks" ? "true" : "false");
+
+  const nextView = activeView === "map" ? dom.mapView : dom.taskView;
+  const prevView = activeView === "map" ? dom.taskView : dom.mapView;
+  prevView.classList.remove("is-switch-enter");
+  nextView.classList.remove("is-switch-enter");
+
+  if (!instant && currentMainView !== activeView) {
+    // Force reflow so rapid toggles replay the enter animation.
+    void nextView.offsetWidth;
+    nextView.classList.add("is-switch-enter");
+    viewSwitchTimer = window.setTimeout(() => {
+      nextView.classList.remove("is-switch-enter");
+      viewSwitchTimer = null;
+    }, VIEW_SWITCH_ANIM_MS);
+  }
+
+  currentMainView = activeView;
+}
+
+function normalizeTaskVideoUrl(rawUrl) {
+  const text = String(rawUrl || "").trim();
+  if (!text) {
+    return "";
+  }
+  if (/^\/\//.test(text)) {
+    return `https:${text}`;
+  }
+  return text;
+}
+
+function resolveTaskUrlType(rawUrl) {
+  const normalized = normalizeTaskVideoUrl(rawUrl);
+  if (!normalized) {
+    return "link";
+  }
+  try {
+    const parsed = new URL(normalized);
+    const host = parsed.hostname.toLowerCase();
+    if (host.includes("player.bilibili.com")) {
+      return "video";
+    }
+  } catch {
+    return "link";
+  }
+  return "link";
+}
+
+function parseTaskLine(line) {
+  const text = String(line || "").trim();
+  if (!text) {
+    return null;
+  }
+
+  const iframeMatch = text.match(/^(?<name>.*?)\s*<iframe[^>]*\ssrc=["'](?<src>[^"']+)["']/i);
+  if (iframeMatch?.groups?.src) {
+    const name = String(iframeMatch.groups.name || "").trim() || "未命名任务";
+    const url = normalizeTaskVideoUrl(iframeMatch.groups.src);
+    return {
+      name,
+      url,
+      type: resolveTaskUrlType(url),
+    };
+  }
+
+  const linkMatch = text.match(/^(?<name>.+?)\s+(?<url>https?:\/\/\S+)$/i);
+  if (linkMatch?.groups?.url) {
+    const url = normalizeTaskVideoUrl(linkMatch.groups.url);
+    return {
+      name: String(linkMatch.groups.name || "").trim(),
+      url,
+      type: resolveTaskUrlType(url),
+    };
+  }
+
+  return null;
+}
+
+function parseTraderTasks(traderName, rawText) {
+  const lines = String(rawText || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const tasks = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const parsed = parseTaskLine(lines[index]);
+    if (!parsed || !parsed.url) {
+      continue;
+    }
+    tasks.push({
+      key: `${traderName}:${index}:${parsed.name}`,
+      name: parsed.name,
+      url: parsed.url,
+      type: parsed.type || "link",
+    });
+  }
+  return tasks;
+}
+
+function buildTaskTraders() {
+  return Object.entries(TASK_TRADER_RAW_DATA).map(([name, rawText]) => ({
+    name,
+    tasks: parseTraderTasks(name, rawText),
+  }));
+}
+
+function rebuildTaskIndex() {
+  const map = new Map();
+  for (const trader of taskState.traders) {
+    for (const task of trader.tasks) {
+      map.set(task.key, task);
+    }
+  }
+  taskState.taskByKey = map;
+}
+
+function updateTaskActiveButtons() {
+  if (!dom.taskTraderList) {
+    return;
+  }
+  const buttons = dom.taskTraderList.querySelectorAll(".task-link-btn");
+  for (const btn of buttons) {
+    const isActive = btn.dataset.taskKey === taskState.selectedTaskKey;
+    btn.classList.toggle("is-active", isActive);
+  }
+}
+
+function setTaskVideo(url, taskKey = "", taskName = "") {
+  if (!dom.taskVideoFrame || !dom.taskVideoWrap || !dom.taskVideoTip || !dom.taskLinkCard || !dom.taskLinkTitle || !dom.taskLinkAnchor) {
+    return;
+  }
+  const normalized = normalizeTaskVideoUrl(url);
+  taskState.selectedTaskKey = taskKey;
+  if (!normalized) {
+    dom.taskVideoWrap.hidden = true;
+    dom.taskVideoTip.hidden = true;
+    dom.taskLinkCard.hidden = true;
+    if (dom.taskVideoFrame.src !== "about:blank") {
+      dom.taskVideoFrame.src = "about:blank";
+    }
+    updateTaskActiveButtons();
+    return;
+  }
+  const resolvedType = resolveTaskUrlType(normalized);
+
+  if (resolvedType === "video") {
+    dom.taskVideoWrap.hidden = false;
+    dom.taskVideoTip.hidden = false;
+    dom.taskLinkCard.hidden = true;
+    dom.taskLinkTitle.textContent = "";
+    dom.taskLinkAnchor.href = "#";
+    dom.taskLinkAnchor.textContent = "";
+    if (dom.taskVideoFrame.src !== normalized) {
+      dom.taskVideoFrame.src = normalized;
+    }
+  } else {
+    dom.taskVideoWrap.hidden = true;
+    dom.taskVideoTip.hidden = true;
+    dom.taskLinkCard.hidden = false;
+    dom.taskLinkTitle.textContent = taskName || "当前任务链接";
+    dom.taskLinkAnchor.href = normalized;
+    dom.taskLinkAnchor.textContent = normalized;
+    if (dom.taskVideoFrame.src !== "about:blank") {
+      dom.taskVideoFrame.src = "about:blank";
+    }
+  }
+
+  updateTaskActiveButtons();
+}
+
+function renderTaskTraderList() {
+  if (!dom.taskTraderList) {
+    return;
+  }
+
+  const slots = [];
+  for (let i = 0; i < TASK_TRADER_SLOT_COUNT; i += 1) {
+    const trader = taskState.traders[i] || null;
+    const traderName = trader?.name || `商人${i + 1}`;
+    const taskButtons =
+      trader && trader.tasks.length > 0
+        ? `<div class="task-trader-content">${trader.tasks
+            .map(
+              (task) =>
+                `<button type="button" class="task-link-btn" data-task-key="${escapeHtml(task.key)}">${escapeHtml(task.name)}</button>`,
+            )
+            .join("")}</div>`
+        : '<div class="task-trader-empty">暂无内容</div>';
+    slots.push(`<details class="task-trader-item"${i === 0 ? " open" : ""}><summary>${escapeHtml(traderName)}</summary>${taskButtons}</details>`);
+  }
+
+  dom.taskTraderList.innerHTML = slots.join("");
+  updateTaskActiveButtons();
+}
+
+function initTaskPanel() {
+  taskState.traders = buildTaskTraders();
+  rebuildTaskIndex();
+  renderTaskTraderList();
+  const firstTask = taskState.traders.flatMap((trader) => trader.tasks)[0];
+  if (firstTask) {
+    setTaskVideo(firstTask.url, firstTask.key, firstTask.name);
+  }
 }
 
 function clamp(value, min, max) {
@@ -299,6 +603,59 @@ function normalizeSyncPort(value, fallback = LAN_SYNC_DEFAULT_PORT) {
     return numeric;
   }
   return fallback;
+}
+
+function normalizeSyncPortOptional(value) {
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return "";
+  }
+  return normalizeSyncPort(text);
+}
+
+function formatSyncPortInputValue(value) {
+  const normalized = normalizeSyncPort(value, 0);
+  return normalized >= 1 && normalized <= 65535 ? String(normalized) : "";
+}
+
+function formatSyncPortStatusText(value) {
+  const text = formatSyncPortInputValue(value);
+  return text || "--";
+}
+
+function normalizeSyncMode(value) {
+  return value === "join" ? "join" : "host";
+}
+
+function getEffectiveSyncRemotePort() {
+  if (state.lan.syncMode === "join") {
+    return normalizeSyncPortOptional(state.lan.remotePort);
+  }
+  return LAN_SYNC_DEFAULT_PORT;
+}
+
+function buildLanConfigPayload() {
+  const isJoinMode = state.lan.syncMode === "join";
+  const remoteHost = isJoinMode ? normalizeSyncHost(state.lan.remoteHost) : "";
+  const remotePort = getEffectiveSyncRemotePort();
+  const requestedEnabled = Boolean(state.lan.enabled);
+  const missingJoinHost = requestedEnabled && isJoinMode && !remoteHost;
+  const missingJoinPort = requestedEnabled && isJoinMode && remotePort === "";
+  const validationError = missingJoinHost
+    ? LAN_SYNC_REMOTE_REQUIRED_MESSAGE
+    : missingJoinPort
+      ? LAN_SYNC_REMOTE_PORT_REQUIRED_MESSAGE
+      : "";
+  return {
+    validationError,
+    payload: {
+      enabled: requestedEnabled && !validationError,
+      displayName: normalizeSyncName(state.lan.displayName),
+      color: normalizeHexColor(state.lan.color),
+      remoteHost,
+      remotePort: remotePort === "" ? LAN_SYNC_DEFAULT_PORT : remotePort,
+    },
+  };
 }
 
 function hexToRgba(hex, alpha) {
@@ -445,8 +802,12 @@ function chooseMapByRecentConsistency(latest) {
 }
 
 function getMapBySelectionOrAuto(latest) {
-  if (state.selectedMapId !== AUTO_MAP_ID) {
+  if (state.selectedMapId !== AUTO_MAP_ID && state.selectedMapId && state.mapsById.has(state.selectedMapId)) {
     return state.mapsById.get(state.selectedMapId) || null;
+  }
+  const raidPreferredMapId = resolveRaidPreferredMapId();
+  if (raidPreferredMapId) {
+    return state.mapsById.get(raidPreferredMapId) || null;
   }
   if (!latest) {
     return state.maps[0] || null;
@@ -455,13 +816,52 @@ function getMapBySelectionOrAuto(latest) {
 }
 
 function getRaidSummaryMapFallback(latest) {
-  if (state.selectedMapId !== AUTO_MAP_ID) {
+  const raidPreferredMapId = resolveRaidPreferredMapId();
+  if (raidPreferredMapId) {
+    return state.mapsById.get(raidPreferredMapId) || null;
+  }
+  if (state.selectedMapId !== AUTO_MAP_ID && state.selectedMapId && state.mapsById.has(state.selectedMapId)) {
     return state.mapsById.get(state.selectedMapId) || null;
   }
   if (!latest) {
     return null;
   }
   return chooseMapByRecentConsistency(latest) || null;
+}
+
+function resolveRaidPreferredMapId() {
+  const raidMapId = String(state.raid.current.mapId || "").trim();
+  if (raidMapId && state.mapsById.has(raidMapId)) {
+    return raidMapId;
+  }
+  const raidMapName = String(state.raid.current.mapName || "").trim();
+  if (!raidMapName) {
+    return null;
+  }
+  const targetName = raidMapName.toLowerCase();
+  for (const map of state.maps) {
+    if (String(map?.name || "").trim().toLowerCase() === targetName) {
+      return map.id;
+    }
+  }
+  return null;
+}
+
+function maybeAutoSwitchMapByRaid() {
+  const preferredMapId = resolveRaidPreferredMapId();
+  const raidId = String(state.raid.current.raidId || "").trim();
+  if (!preferredMapId || !raidId) {
+    return false;
+  }
+  const switchKey = `${raidId}:${preferredMapId}`;
+  if (state.lastRaidAutoMapId === switchKey) {
+    return false;
+  }
+  state.lastRaidAutoMapId = switchKey;
+  if (state.selectedMapId === AUTO_MAP_ID && dom.mapSelect) {
+    dom.mapSelect.value = AUTO_MAP_ID;
+  }
+  return true;
 }
 
 function createRealToImageConverter(size = { width: 1, height: 1 }, bounds, reverseCoordinate) {
@@ -986,12 +1386,10 @@ function updateMapPanel(latest) {
 
   setMapImage(map);
   setMapOverlayVisible(false);
-  const poiCount = renderPoiLayer(map);
-
-  if (state.selectedMapId === AUTO_MAP_ID) {
-    dom.mapStatus.textContent = `地图状态: 自动模式 / ${map.name} / ${poiCount} 点`;
-  } else {
-    dom.mapStatus.textContent = `地图状态: 手动模式 / ${map.name} / ${poiCount} 点`;
+  renderPoiLayer(map);
+  const selectValue = state.selectedMapId === AUTO_MAP_ID ? AUTO_MAP_ID : map.id;
+  if (dom.mapSelect && dom.mapSelect.value !== selectValue) {
+    dom.mapSelect.value = selectValue;
   }
 
   if (!latest) {
@@ -1008,13 +1406,22 @@ function updateMapPanel(latest) {
   return map;
 }
 
-function updateDirLabels() {
+function updateDirLabelsLegacy() {
   dom.dirLabel.textContent = state.screenshotDirHandle
     ? `截图目录: ${state.screenshotDirHandle.name || "已选择"}`
     : "截图目录: 未选择";
   dom.gameDirLabel.textContent = state.raid.gameDirHandle
     ? `游戏目录: ${state.raid.gameDirHandle.name || "已选择"}`
     : "游戏目录: 未选择";
+}
+
+function updateDirLabels() {
+  dom.dirLabel.textContent = state.screenshotDirHandle
+    ? state.screenshotDirHandle.name || "已选择"
+    : "未选择";
+  dom.gameDirLabel.textContent = state.raid.gameDirHandle
+    ? state.raid.gameDirHandle.name || "已选择"
+    : "未选择";
 }
 
 function renderDetailRows(container, rows) {
@@ -1068,7 +1475,7 @@ function renderRaidInfo(summaryState) {
       <span class="raid-pill-value">${escapeHtml(summary.sessionMode)}</span>
     </span>
     <span class="raid-pill">
-      <span class="raid-pill-label">战局</span>
+      <span class="raid-pill-label">战局状态</span>
       <span class="raid-pill-value">${escapeHtml(summary.raidStatusText)}</span>
     </span>
     <span class="raid-pill">
@@ -1157,7 +1564,7 @@ function reflectLanConfigInputs() {
     dom.syncRemoteHostInput.value = state.lan.remoteHost;
   }
   if (document.activeElement !== dom.syncRemotePortInput) {
-    dom.syncRemotePortInput.value = String(normalizeSyncPort(state.lan.remotePort));
+    dom.syncRemotePortInput.value = state.lan.syncMode === "join" ? formatSyncPortInputValue(state.lan.remotePort) : "";
   }
 }
 
@@ -1172,13 +1579,25 @@ function loadLanSyncConfig() {
     state.lan.displayName = normalizeSyncName(parsed?.displayName);
     state.lan.color = normalizeHexColor(parsed?.color);
     state.lan.remoteHost = normalizeSyncHost(parsed?.remoteHost);
-    state.lan.remotePort = normalizeSyncPort(parsed?.remotePort);
+    state.lan.remotePort = normalizeSyncPortOptional(parsed?.remotePort);
+    state.lan.syncMode = normalizeSyncMode(parsed?.syncMode ?? (state.lan.remoteHost ? "join" : "host"));
+    // Migrate legacy default-port values to blank input in join mode.
+    if (
+      state.lan.syncMode === "join" &&
+      Number.parseInt(String(parsed?.remotePort ?? ""), 10) === LAN_SYNC_DEFAULT_PORT
+    ) {
+      state.lan.remotePort = "";
+    }
+    if (state.lan.syncMode !== "join" && !state.lan.remoteHost) {
+      state.lan.remotePort = "";
+    }
   } catch {
     state.lan.enabled = false;
     state.lan.displayName = "本机玩家";
     state.lan.color = LAN_SYNC_DEFAULT_COLOR;
     state.lan.remoteHost = "";
-    state.lan.remotePort = LAN_SYNC_DEFAULT_PORT;
+    state.lan.remotePort = "";
+    state.lan.syncMode = "host";
   }
 }
 
@@ -1188,7 +1607,8 @@ function persistLanSyncConfig() {
     displayName: normalizeSyncName(state.lan.displayName),
     color: normalizeHexColor(state.lan.color),
     remoteHost: normalizeSyncHost(state.lan.remoteHost),
-    remotePort: normalizeSyncPort(state.lan.remotePort),
+    remotePort: normalizeSyncPortOptional(state.lan.remotePort),
+    syncMode: normalizeSyncMode(state.lan.syncMode),
   };
   localStorage.setItem(LAN_SYNC_STORAGE_KEY, JSON.stringify(payload));
 }
@@ -1209,32 +1629,46 @@ async function apiJson(path, init = {}) {
 }
 
 function applyLanBackendSnapshot(snapshot) {
+  const localValidationError =
+    state.lan.lastError === LAN_SYNC_REMOTE_REQUIRED_MESSAGE || state.lan.lastError === LAN_SYNC_REMOTE_PORT_REQUIRED_MESSAGE
+      ? state.lan.lastError
+      : "";
   state.lan.backendReady = true;
   state.lan.lastError = String(snapshot?.lastError || "");
   state.lan.enabled = Boolean(snapshot?.enabled);
   state.lan.mode = ["off", "host", "join"].includes(snapshot?.mode) ? snapshot.mode : state.lan.mode;
   state.lan.displayName = normalizeSyncName(snapshot?.displayName ?? state.lan.displayName);
   state.lan.color = normalizeHexColor(snapshot?.color ?? state.lan.color);
-  state.lan.remoteHost = normalizeSyncHost(snapshot?.remoteHost ?? state.lan.remoteHost);
-  state.lan.remotePort = normalizeSyncPort(snapshot?.remotePort ?? state.lan.remotePort);
+  const snapshotHost = normalizeSyncHost(snapshot?.remoteHost);
+  if (snapshotHost) {
+    state.lan.remoteHost = snapshotHost;
+  }
   state.lan.transport = safeText(snapshot?.transport, state.lan.transport);
   state.lan.peers = Array.isArray(snapshot?.peers) ? snapshot.peers : [];
+  if (
+    !state.lan.lastError &&
+    localValidationError &&
+    state.lan.syncMode === "join" &&
+    !state.lan.enabled &&
+    (!normalizeSyncHost(state.lan.remoteHost) || normalizeSyncPortOptional(state.lan.remotePort) === "")
+  ) {
+    state.lan.lastError = localValidationError;
+  }
   reflectLanConfigInputs();
   applyLocalMarkerAppearance();
 }
 
 async function syncLanConfigToBackend() {
+  const { payload, validationError } = buildLanConfigPayload();
   const snapshot = await apiJson("/api/lan-sync/config", {
     method: "POST",
-    body: JSON.stringify({
-      enabled: Boolean(state.lan.enabled),
-      displayName: normalizeSyncName(state.lan.displayName),
-      color: normalizeHexColor(state.lan.color),
-      remoteHost: normalizeSyncHost(state.lan.remoteHost),
-      remotePort: normalizeSyncPort(state.lan.remotePort),
-    }),
+    body: JSON.stringify(payload),
   });
   applyLanBackendSnapshot(snapshot);
+  if (validationError) {
+    state.lan.lastError = validationError;
+    persistLanSyncConfig();
+  }
 }
 
 async function fetchLanSyncState() {
@@ -1314,13 +1748,76 @@ async function publishLanState(latest, activeMap) {
   }
 }
 
-function renderLanSyncPanel() {
+function renderLanSyncPanelLegacy() {
   reflectLanConfigInputs();
   dom.syncToggleBtn.textContent = state.lan.enabled ? "关闭同步" : "开启同步";
   const modeText =
     state.lan.mode === "join"
-      ? `连接模式（${safeText(state.lan.remoteHost, "--")}:${normalizeSyncPort(state.lan.remotePort)}）`
+      ? `连接模式（${safeText(state.lan.remoteHost, "--")}:${formatSyncPortStatusText(state.lan.remotePort)}）`
       : "房主模式（等待队友连接）";
+
+  if (state.lan.lastError) {
+    dom.syncStatus.textContent = `同步状态: ${modeText} / ${state.lan.lastError}`;
+    dom.syncStatus.style.color = "var(--danger)";
+  } else if (!state.lan.enabled) {
+    dom.syncStatus.textContent = "同步状态: 未开启";
+    dom.syncStatus.style.color = "var(--muted)";
+  } else if (!state.lan.backendReady) {
+    dom.syncStatus.textContent = "同步状态: 本机同步服务不可用";
+    dom.syncStatus.style.color = "var(--danger)";
+  } else if (!state.lan.peers.length) {
+    dom.syncStatus.textContent = `同步状态: ${modeText} / 暂无在线队友`;
+    dom.syncStatus.style.color = "var(--warn)";
+  } else {
+    dom.syncStatus.textContent = `同步状态: ${modeText} / 已连接 ${state.lan.peers.length} 名队友`;
+    dom.syncStatus.style.color = "var(--accent)";
+  }
+
+  if (!state.lan.enabled) {
+    dom.syncPeerList.innerHTML = '<div class="sync-empty">开启同步后，会在这里显示已连接的队友。</div>';
+    return;
+  }
+  if (!state.lan.peers.length) {
+    dom.syncPeerList.innerHTML = '<div class="sync-empty">暂无队友在线</div>';
+    return;
+  }
+
+  dom.syncPeerList.innerHTML = state.lan.peers
+    .map((peer) => {
+      const peerState = peer?.state || {};
+      const mapText = safeText(peerState.mapName, "暂无坐标");
+      const raidText = safeText(RAID_STATUS_TEXT[peerState.raidStatus] || peerState.raidStatus, "未知状态");
+      return `
+        <article class="sync-peer-row">
+          <div class="sync-peer-main">
+            <span class="sync-peer-swatch" style="background:${escapeHtml(normalizeHexColor(peer.color))}"></span>
+            <div class="sync-peer-name-block">
+              <span class="sync-peer-name">${escapeHtml(peer.displayName || "队友")}</span>
+              <span class="sync-peer-meta">${escapeHtml(mapText)} / ${escapeHtml(raidText)} / ${escapeHtml(peer.host || "--")}</span>
+            </div>
+          </div>
+          <div class="sync-peer-side">
+            最后更新: ${escapeHtml(formatRelativeAge(peer.lastSeenAt))}
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderLanSyncPanel() {
+  reflectLanConfigInputs();
+  const isJoinMode = state.lan.syncMode === "join";
+  dom.syncPanel.dataset.syncMode = isJoinMode ? "join" : "host";
+  dom.syncModeBtn.textContent = isJoinMode ? "切换到房主模式" : "切换到连接模式";
+  dom.syncModeBtn.setAttribute("aria-pressed", isJoinMode ? "true" : "false");
+  if (dom.syncRemoteGroup) {
+    dom.syncRemoteGroup.hidden = !isJoinMode;
+  }
+  dom.syncToggleBtn.textContent = state.lan.enabled ? "关闭同步" : "开启同步";
+  const modeText = isJoinMode
+    ? `连接模式（${safeText(state.lan.remoteHost, "--")}:${formatSyncPortStatusText(state.lan.remotePort)}）`
+    : "房主模式（等待队友连接）";
 
   if (state.lan.lastError) {
     dom.syncStatus.textContent = `同步状态: ${modeText} / ${state.lan.lastError}`;
@@ -1386,7 +1883,7 @@ function populateMapSelect() {
 
   const autoOption = document.createElement("option");
   autoOption.value = AUTO_MAP_ID;
-  autoOption.textContent = "自动选择（按坐标）";
+  autoOption.textContent = "自动选择";
   dom.mapSelect.appendChild(autoOption);
 
   for (const map of state.maps) {
@@ -1395,8 +1892,12 @@ function populateMapSelect() {
     option.textContent = map.name;
     dom.mapSelect.appendChild(option);
   }
-
-  dom.mapSelect.value = state.selectedMapId;
+  const currentValue =
+    state.selectedMapId === AUTO_MAP_ID || state.mapsById.has(state.selectedMapId)
+      ? state.selectedMapId
+      : AUTO_MAP_ID;
+  state.selectedMapId = currentValue;
+  dom.mapSelect.value = currentValue;
 }
 
 async function loadMapMetadata() {
@@ -1468,10 +1969,8 @@ async function readFileText(handle) {
 }
 
 function resetRaidLogOffsets() {
-  state.raid.logOffsets.application = 0;
-  state.raid.logOffsets.notifications = 0;
-  state.raid.logLastModified.application = 0;
-  state.raid.logLastModified.notifications = 0;
+  state.raid.logOffsets = {};
+  state.raid.logLastModified = {};
 }
 
 function resetRaidDerivedState() {
@@ -1479,6 +1978,7 @@ function resetRaidDerivedState() {
   state.raid.events = [];
   state.raid.lastLogScanAt = null;
   state.raid.ui.lastUpdatedAt = null;
+  state.lastRaidAutoMapId = "";
 }
 
 function setRaidUiError(message = "") {
@@ -1531,13 +2031,20 @@ async function resolveLatestLogPath(logsRootHandle) {
 }
 
 async function resolveLogFile(logDirHandle, namePart) {
+  const files = await resolveLogFiles(logDirHandle, namePart);
+  return files[0] || null;
+}
+
+async function resolveLogFiles(logDirHandle, namePart) {
   const entries = logDirHandle.entries();
+  const files = [];
   for await (const [, handle] of entries) {
     if (handle.kind === "file" && handle.name.includes(namePart)) {
-      return logDirHandle.getFileHandle(handle.name);
+      files.push(handle);
     }
   }
-  return null;
+  files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+  return files;
 }
 
 async function checkGameDirectory(handle) {
@@ -2083,12 +2590,12 @@ function reduceRaidState(previousState, raidEvent) {
   }
 
   if (type === "matching_completed") {
-    if (next.isActive || next.status === "in_raid" || next.status === "extracting_or_over" || next.status === "aborted") {
+    if (next.status !== "matching" && next.status !== "loading") {
       next = createFreshRaidCurrent(next);
     }
     next.queueCompletedAt = timestamp;
     next.queueDurationSec = payload.queueTime ?? next.queueDurationSec;
-    if (!next.matchStartAt && Number.isFinite(payload.queueTime)) {
+    if (Number.isFinite(payload.queueTime)) {
       next.matchStartAt = timestamp - payload.queueTime * 1000;
     } else {
       ensureMatchStart(next, timestamp);
@@ -2098,6 +2605,9 @@ function reduceRaidState(previousState, raidEvent) {
   }
 
   if (type === "map_loading") {
+    if (next.status !== "matching" && next.status !== "loading") {
+      next = createFreshRaidCurrent(next);
+    }
     ensureMatchStart(next, timestamp);
     next.mapId = payload.mapId || next.mapId;
     next.mapName = payload.mapName || next.mapName;
@@ -2149,6 +2659,7 @@ function reduceRaidState(previousState, raidEvent) {
 
 function applyRaidEvent(event) {
   state.raid.current = reduceRaidState(state.raid.current, event);
+  maybeAutoSwitchMapByRaid();
   state.raid.events = [event, ...state.raid.events.filter((existing) => existing.id !== event.id)].slice(
     0,
     MAX_RAID_EVENTS,
@@ -2161,6 +2672,8 @@ async function resolveRaidLogHandles() {
     state.raid.logDirHandle = null;
     state.raid.applicationLogHandle = null;
     state.raid.notificationsLogHandle = null;
+    state.raid.applicationLogHandles = [];
+    state.raid.notificationsLogHandles = [];
     return false;
   }
 
@@ -2180,8 +2693,10 @@ async function resolveRaidLogHandles() {
 
   const directoryChanged = state.raid.logDirHandle?.name !== latestLogDir.name;
   state.raid.logDirHandle = latestLogDir;
-  state.raid.applicationLogHandle = await resolveLogFile(latestLogDir, "application");
-  state.raid.notificationsLogHandle = await resolveLogFile(latestLogDir, "notifications");
+  state.raid.applicationLogHandles = await resolveLogFiles(latestLogDir, "application");
+  state.raid.notificationsLogHandles = await resolveLogFiles(latestLogDir, "notifications");
+  state.raid.applicationLogHandle = state.raid.applicationLogHandles[0] || null;
+  state.raid.notificationsLogHandle = state.raid.notificationsLogHandles[0] || null;
   if (directoryChanged) {
     resetRaidLogOffsets();
     resetRaidDerivedState();
@@ -2190,40 +2705,43 @@ async function resolveRaidLogHandles() {
   if (state.raid.current.status === "error") {
     state.raid.current.status = "idle";
   }
-  return Boolean(state.raid.applicationLogHandle || state.raid.notificationsLogHandle);
+  return Boolean(state.raid.applicationLogHandles.length || state.raid.notificationsLogHandles.length);
 }
 
-async function scanLogHandle(kind, { fullRescan = false } = {}) {
-  const handle = kind === "application" ? state.raid.applicationLogHandle : state.raid.notificationsLogHandle;
+async function scanLogFile(kind, handle, { fullRescan = false } = {}) {
   if (!handle) {
-    return 0;
+    return [];
   }
 
+  const offsetKey = `${kind}:${handle.name}`;
   const file = await handle.getFile();
   const lastModified = file.lastModified;
-  if (!fullRescan && lastModified <= state.raid.logLastModified[kind]) {
-    return 0;
+  if (!fullRescan && lastModified <= (state.raid.logLastModified[offsetKey] || 0)) {
+    return [];
   }
 
   const text = await file.text();
   const lines = typeof text === "string" ? text.split("\n") : [];
   const entries = parseLogLines(lines);
-  if (fullRescan || entries.length < state.raid.logOffsets[kind]) {
-    state.raid.logOffsets[kind] = 0;
+  if (fullRescan || entries.length < (state.raid.logOffsets[offsetKey] || 0)) {
+    state.raid.logOffsets[offsetKey] = 0;
   }
-  const stableOffset = state.raid.logOffsets[kind];
+  const stableOffset = state.raid.logOffsets[offsetKey] || 0;
   const startIndex = fullRescan ? 0 : Math.max(0, stableOffset - 1);
   const newEntries = entries.slice(startIndex);
-  state.raid.logOffsets[kind] = entries.length;
-  state.raid.logLastModified[kind] = lastModified;
+  state.raid.logOffsets[offsetKey] = entries.length;
+  state.raid.logLastModified[offsetKey] = lastModified;
 
-  for (const entry of newEntries) {
-    const event = extractRaidEvent(entry);
-    if (event) {
-      applyRaidEvent(event);
-    }
+  return newEntries;
+}
+
+async function scanLogHandles(kind, options = {}) {
+  const handles = kind === "application" ? state.raid.applicationLogHandles : state.raid.notificationsLogHandles;
+  const entries = [];
+  for (const handle of handles) {
+    entries.push(...(await scanLogFile(kind, handle, options)));
   }
-  return newEntries.length;
+  return entries;
 }
 
 async function scanRaidLogs(options = {}) {
@@ -2236,9 +2754,17 @@ async function scanRaidLogs(options = {}) {
     return 0;
   }
 
-  let changes = 0;
-  changes += await scanLogHandle("application", options);
-  changes += await scanLogHandle("notifications", options);
+  const newEntries = [
+    ...(await scanLogHandles("application", options)),
+    ...(await scanLogHandles("notifications", options)),
+  ].sort((a, b) => parseEntryTimestamp(a) - parseEntryTimestamp(b));
+  for (const entry of newEntries) {
+    const event = extractRaidEvent(entry);
+    if (event) {
+      applyRaidEvent(event);
+    }
+  }
+  const changes = newEntries.length;
   if (changes > 0 || options.fullRescan) {
     state.raid.lastLogScanAt = Date.now();
   }
@@ -2427,6 +2953,24 @@ async function restoreGameDirectory() {
 }
 
 function bindEvents() {
+  dom.mapTabBtn.addEventListener("click", () => setMainView("map"));
+  dom.taskTabBtn.addEventListener("click", () => setMainView("tasks"));
+  dom.taskTraderList?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+    const button = target.closest(".task-link-btn");
+    if (!button) {
+      return;
+    }
+    const taskKey = button.dataset.taskKey || "";
+    const task = taskState.taskByKey.get(taskKey);
+    if (!task) {
+      return;
+    }
+    setTaskVideo(task.url, task.key, task.name);
+  });
   dom.pickDirBtn.addEventListener("click", () => {
     chooseScreenshotDirectory().catch((error) => setStatus(`选择截图目录失败: ${error.message}`, true));
   });
@@ -2455,6 +2999,20 @@ function bindEvents() {
   dom.raidToggleBtn.addEventListener("click", () => {
     state.raid.ui.expanded = !state.raid.ui.expanded;
     refreshUi();
+  });
+  dom.syncModeBtn.addEventListener("click", () => {
+    state.lan.syncMode = state.lan.syncMode === "join" ? "host" : "join";
+    if (state.lan.syncMode === "join") {
+      state.lan.remotePort = "";
+    }
+    persistLanSyncConfig();
+    syncLanConfigToBackend()
+      .then(() => refreshUi())
+      .catch((error) => {
+        state.lan.backendReady = false;
+        state.lan.lastError = error.message || "切换同步模式失败";
+        refreshUi();
+      });
   });
   dom.syncToggleBtn.addEventListener("click", () => {
     state.lan.enabled = !state.lan.enabled;
@@ -2502,7 +3060,7 @@ function bindEvents() {
       });
   });
   dom.syncRemotePortInput.addEventListener("change", () => {
-    state.lan.remotePort = normalizeSyncPort(dom.syncRemotePortInput.value, state.lan.remotePort);
+    state.lan.remotePort = normalizeSyncPortOptional(dom.syncRemotePortInput.value);
     persistLanSyncConfig();
     syncLanConfigToBackend()
       .then(() => refreshUi())
@@ -2568,7 +3126,9 @@ function bindEvents() {
 
 async function boot() {
   loadLanSyncConfig();
+  initTaskPanel();
   bindEvents();
+  setMainView("map", { instant: true });
   resetMapZoom();
   reflectLanConfigInputs();
   applyLocalMarkerAppearance();
