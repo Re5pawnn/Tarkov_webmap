@@ -19,6 +19,7 @@ const LAN_SYNC_MIN_PUBLISH_MS = 900;
 const LAN_SYNC_DEFAULT_COLOR = "#4fd1ff";
 const LAN_SYNC_DEFAULT_PORT = 39247;
 const LAN_SYNC_REMOTE_REQUIRED_MESSAGE = "连接模式需要填写远端地址";
+const LAN_SYNC_REMOTE_PORT_REQUIRED_MESSAGE = "连接模式需要填写远端端口";
 const POI_EDGE_TOLERANCE = 0.02;
 const ICON_BASE = "https://cdn.kaedeori.com/uploads/tarkov/map-icons";
 const FLEA_MARKET_SOLD_TEMPLATE = "5bdabfb886f7743e152e867e 0";
@@ -244,7 +245,7 @@ function createInitialLanState() {
     displayName: "本机玩家",
     color: LAN_SYNC_DEFAULT_COLOR,
     remoteHost: "",
-    remotePort: LAN_SYNC_DEFAULT_PORT,
+    remotePort: "",
     syncMode: "host",
     mode: "off",
     transport: "frp-tcp",
@@ -604,29 +605,55 @@ function normalizeSyncPort(value, fallback = LAN_SYNC_DEFAULT_PORT) {
   return fallback;
 }
 
+function normalizeSyncPortOptional(value) {
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return "";
+  }
+  return normalizeSyncPort(text);
+}
+
+function formatSyncPortInputValue(value) {
+  const normalized = normalizeSyncPort(value, 0);
+  return normalized >= 1 && normalized <= 65535 ? String(normalized) : "";
+}
+
+function formatSyncPortStatusText(value) {
+  const text = formatSyncPortInputValue(value);
+  return text || "--";
+}
+
 function normalizeSyncMode(value) {
   return value === "join" ? "join" : "host";
 }
 
 function getEffectiveSyncRemotePort() {
-  return state.lan.syncMode === "join"
-    ? normalizeSyncPort(state.lan.remotePort)
-    : LAN_SYNC_DEFAULT_PORT;
+  if (state.lan.syncMode === "join") {
+    return normalizeSyncPortOptional(state.lan.remotePort);
+  }
+  return LAN_SYNC_DEFAULT_PORT;
 }
 
 function buildLanConfigPayload() {
   const isJoinMode = state.lan.syncMode === "join";
   const remoteHost = isJoinMode ? normalizeSyncHost(state.lan.remoteHost) : "";
+  const remotePort = getEffectiveSyncRemotePort();
   const requestedEnabled = Boolean(state.lan.enabled);
-  const missingJoinTarget = requestedEnabled && isJoinMode && !remoteHost;
+  const missingJoinHost = requestedEnabled && isJoinMode && !remoteHost;
+  const missingJoinPort = requestedEnabled && isJoinMode && remotePort === "";
+  const validationError = missingJoinHost
+    ? LAN_SYNC_REMOTE_REQUIRED_MESSAGE
+    : missingJoinPort
+      ? LAN_SYNC_REMOTE_PORT_REQUIRED_MESSAGE
+      : "";
   return {
-    validationError: missingJoinTarget ? LAN_SYNC_REMOTE_REQUIRED_MESSAGE : "",
+    validationError,
     payload: {
-      enabled: requestedEnabled && !missingJoinTarget,
+      enabled: requestedEnabled && !validationError,
       displayName: normalizeSyncName(state.lan.displayName),
       color: normalizeHexColor(state.lan.color),
       remoteHost,
-      remotePort: getEffectiveSyncRemotePort(),
+      remotePort: remotePort === "" ? LAN_SYNC_DEFAULT_PORT : remotePort,
     },
   };
 }
@@ -1537,7 +1564,7 @@ function reflectLanConfigInputs() {
     dom.syncRemoteHostInput.value = state.lan.remoteHost;
   }
   if (document.activeElement !== dom.syncRemotePortInput) {
-    dom.syncRemotePortInput.value = state.lan.syncMode === "join" ? String(normalizeSyncPort(state.lan.remotePort)) : "";
+    dom.syncRemotePortInput.value = state.lan.syncMode === "join" ? formatSyncPortInputValue(state.lan.remotePort) : "";
   }
 }
 
@@ -1552,14 +1579,24 @@ function loadLanSyncConfig() {
     state.lan.displayName = normalizeSyncName(parsed?.displayName);
     state.lan.color = normalizeHexColor(parsed?.color);
     state.lan.remoteHost = normalizeSyncHost(parsed?.remoteHost);
-    state.lan.remotePort = normalizeSyncPort(parsed?.remotePort);
+    state.lan.remotePort = normalizeSyncPortOptional(parsed?.remotePort);
     state.lan.syncMode = normalizeSyncMode(parsed?.syncMode ?? (state.lan.remoteHost ? "join" : "host"));
+    // Migrate legacy default-port values to blank input in join mode.
+    if (
+      state.lan.syncMode === "join" &&
+      Number.parseInt(String(parsed?.remotePort ?? ""), 10) === LAN_SYNC_DEFAULT_PORT
+    ) {
+      state.lan.remotePort = "";
+    }
+    if (state.lan.syncMode !== "join" && !state.lan.remoteHost) {
+      state.lan.remotePort = "";
+    }
   } catch {
     state.lan.enabled = false;
     state.lan.displayName = "本机玩家";
     state.lan.color = LAN_SYNC_DEFAULT_COLOR;
     state.lan.remoteHost = "";
-    state.lan.remotePort = LAN_SYNC_DEFAULT_PORT;
+    state.lan.remotePort = "";
     state.lan.syncMode = "host";
   }
 }
@@ -1570,7 +1607,7 @@ function persistLanSyncConfig() {
     displayName: normalizeSyncName(state.lan.displayName),
     color: normalizeHexColor(state.lan.color),
     remoteHost: normalizeSyncHost(state.lan.remoteHost),
-    remotePort: normalizeSyncPort(state.lan.remotePort),
+    remotePort: normalizeSyncPortOptional(state.lan.remotePort),
     syncMode: normalizeSyncMode(state.lan.syncMode),
   };
   localStorage.setItem(LAN_SYNC_STORAGE_KEY, JSON.stringify(payload));
@@ -1592,7 +1629,10 @@ async function apiJson(path, init = {}) {
 }
 
 function applyLanBackendSnapshot(snapshot) {
-  const localValidationError = state.lan.lastError === LAN_SYNC_REMOTE_REQUIRED_MESSAGE ? state.lan.lastError : "";
+  const localValidationError =
+    state.lan.lastError === LAN_SYNC_REMOTE_REQUIRED_MESSAGE || state.lan.lastError === LAN_SYNC_REMOTE_PORT_REQUIRED_MESSAGE
+      ? state.lan.lastError
+      : "";
   state.lan.backendReady = true;
   state.lan.lastError = String(snapshot?.lastError || "");
   state.lan.enabled = Boolean(snapshot?.enabled);
@@ -1603,7 +1643,6 @@ function applyLanBackendSnapshot(snapshot) {
   if (snapshotHost) {
     state.lan.remoteHost = snapshotHost;
   }
-  state.lan.remotePort = normalizeSyncPort(snapshot?.remotePort, state.lan.remotePort);
   state.lan.transport = safeText(snapshot?.transport, state.lan.transport);
   state.lan.peers = Array.isArray(snapshot?.peers) ? snapshot.peers : [];
   if (
@@ -1611,7 +1650,7 @@ function applyLanBackendSnapshot(snapshot) {
     localValidationError &&
     state.lan.syncMode === "join" &&
     !state.lan.enabled &&
-    !normalizeSyncHost(state.lan.remoteHost)
+    (!normalizeSyncHost(state.lan.remoteHost) || normalizeSyncPortOptional(state.lan.remotePort) === "")
   ) {
     state.lan.lastError = localValidationError;
   }
@@ -1714,7 +1753,7 @@ function renderLanSyncPanelLegacy() {
   dom.syncToggleBtn.textContent = state.lan.enabled ? "关闭同步" : "开启同步";
   const modeText =
     state.lan.mode === "join"
-      ? `连接模式（${safeText(state.lan.remoteHost, "--")}:${normalizeSyncPort(state.lan.remotePort)}）`
+      ? `连接模式（${safeText(state.lan.remoteHost, "--")}:${formatSyncPortStatusText(state.lan.remotePort)}）`
       : "房主模式（等待队友连接）";
 
   if (state.lan.lastError) {
@@ -1777,7 +1816,7 @@ function renderLanSyncPanel() {
   }
   dom.syncToggleBtn.textContent = state.lan.enabled ? "关闭同步" : "开启同步";
   const modeText = isJoinMode
-    ? `连接模式（${safeText(state.lan.remoteHost, "--")}:${normalizeSyncPort(state.lan.remotePort)}）`
+    ? `连接模式（${safeText(state.lan.remoteHost, "--")}:${formatSyncPortStatusText(state.lan.remotePort)}）`
     : "房主模式（等待队友连接）";
 
   if (state.lan.lastError) {
@@ -2963,6 +3002,9 @@ function bindEvents() {
   });
   dom.syncModeBtn.addEventListener("click", () => {
     state.lan.syncMode = state.lan.syncMode === "join" ? "host" : "join";
+    if (state.lan.syncMode === "join") {
+      state.lan.remotePort = "";
+    }
     persistLanSyncConfig();
     syncLanConfigToBackend()
       .then(() => refreshUi())
@@ -3018,7 +3060,7 @@ function bindEvents() {
       });
   });
   dom.syncRemotePortInput.addEventListener("change", () => {
-    state.lan.remotePort = normalizeSyncPort(dom.syncRemotePortInput.value, state.lan.remotePort);
+    state.lan.remotePort = normalizeSyncPortOptional(dom.syncRemotePortInput.value);
     persistLanSyncConfig();
     syncLanConfigToBackend()
       .then(() => refreshUi())
