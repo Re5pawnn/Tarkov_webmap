@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>塔科夫地图定位</title>
+    <script>
+      (() => {
+        const params = new URLSearchParams(window.location.search);
+        const requested = String(params.get("view") || params.get("mode") || "").trim().toLowerCase();
+        const forceMobile = ["mobile", "phone", "viewer"].includes(requested);
+        const forceDesktop = ["desktop", "admin", "full"].includes(requested);
+        const uaDataMobile = navigator.userAgentData?.mobile === true;
+        const mobileUa = /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(navigator.userAgent || "");
+        if (!forceDesktop && (forceMobile || uaDataMobile || mobileUa)) {
+          document.documentElement.classList.add("mobile-viewer");
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -19,7 +32,6 @@
           <div class="control-row">
             <button id="pickDirBtn" class="btn btn-primary">选择截图目录</button>
             <button id="pickGameDirBtn" class="btn">选择Log目录</button>
-            <button id="scanBtn" class="btn">立即扫描</button>
             <button id="watchBtn" class="btn btn-accent">开始监听</button>
           </div>
           <div class="control-row">
@@ -27,6 +39,11 @@
             <input id="intervalInput" class="interval-input" type="number" min="1" max="30" value="2" />
             <label class="interval-label" for="mapSelect">地图</label>
             <select id="mapSelect"></select>
+            <label class="interval-label" for="mapBaseSelect">底图</label>
+            <select id="mapBaseSelect">
+              <option value="abstract">抽象图</option>
+              <option value="satellite">卫星图</option>
+            </select>
             <span id="dirLabel" class="dir-label">未选择</span>
             <span id="gameDirLabel" class="dir-label">未选择</span>
           </div>
@@ -38,7 +55,11 @@
         </section>
 
         <section class="panel live-map-panel">
-          <div class="overlay-controls">
+          <details id="poiFilterPanel" class="poi-filter-panel">
+            <summary class="poi-filter-summary">
+              <span>点位显示</span>
+            </summary>
+            <div class="overlay-controls">
             <label><input id="toggleExtracts" type="checkbox" checked /> 撤离点</label>
             <label><input id="toggleSpawnPmc" type="checkbox" checked /> PMC出生</label>
             <label><input id="toggleSpawnScav" type="checkbox" checked /> Scav出生</label>
@@ -51,7 +72,8 @@
             <label><input id="toggleStationary" type="checkbox" checked /> 固定武器</label>
             <label><input id="toggleBtr" type="checkbox" checked /> BTR停靠点</label>
             <label><input id="toggleTransits" type="checkbox" checked /> 转移点</label>
-          </div>
+            </div>
+          </details>
 
           <div class="map-viewport" id="mapViewport">
             <div id="mapCanvas" class="map-canvas">
@@ -113,11 +135,7 @@
               <div id="syncRemoteGroup" class="sync-remote-group">
                 <label class="sync-field">
                   <span>远端地址（连接模式）</span>
-                  <input id="syncRemoteHostInput" type="text" maxlength="128" placeholder="例如 frp.example.com" />
-                </label>
-                <label class="sync-field sync-field-port">
-                  <span>远端端口</span>
-                  <input id="syncRemotePortInput" type="number" min="1" max="65535" value="" placeholder="填写樱花远端端口" />
+                  <input id="syncRemoteEndpointInput" type="text" maxlength="180" placeholder="粘贴樱花地址，例如 frp.example.com:12345" />
                 </label>
               </div>
             </div>

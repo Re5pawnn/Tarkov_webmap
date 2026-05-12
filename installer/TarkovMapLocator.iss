@@ -2,7 +2,7 @@
 #define MyAppVersion "1.2.0"
 #define MyAppPublisher "Re5pawnn"
 #define MyAppURL "https://github.com/Re5pawnn/Tarkov_webmap"
-#define MyAppLauncher "start_tool.bat"
+#define MyAppLauncher "start_tool_hidden.vbs"
 
 [Setup]
 AppId={{A3E3D2D1-77EF-4D33-8A31-B8E77EA1A4F2}
@@ -38,10 +38,10 @@ Source: "{#SourcePath}\..\index.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourcePath}\..\styles.css"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourcePath}\..\launcher.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourcePath}\..\start_tool.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}\..\start_tool_hidden.vbs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourcePath}\..\maps_detail.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourcePath}\..\maps_list.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SourcePath}\..\使用方法.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}\..\assets\maps\*"; DestDir: "{app}\assets\maps"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#SourcePath}\..\runtime\python\*"; DestDir: "{app}\runtime\python"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
@@ -49,4 +49,4 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppLauncher}"; Working
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppLauncher}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppLauncher}"; Description: "立即启动工具"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppLauncher}"; Description: "立即启动工具"; Flags: nowait postinstall skipifsilent shellexec
