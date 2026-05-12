@@ -312,7 +312,7 @@ code,
   }
 }
 
-@media (orientation: portrait) {
+@media (orientation: portrait) and (min-width: 981px) {
   body.task-view-active {
     overflow-x: auto;
   }
@@ -397,7 +397,8 @@ code,
 }
 
 .interval-input,
-#mapSelect {
+#mapSelect,
+#mapBaseSelect {
   border: 1px solid var(--line);
   background: #102838;
   color: var(--text);
@@ -413,6 +414,10 @@ code,
   min-width: 200px;
 }
 
+#mapBaseSelect {
+  min-width: 96px;
+}
+
 .dir-label {
   display: none;
   color: var(--muted);
@@ -422,6 +427,107 @@ code,
 #mapStatus,
 #poiCount {
   display: none;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .main-tabs,
+:is(html.mobile-viewer, body.mobile-viewer) #taskView,
+:is(html.mobile-viewer, body.mobile-viewer) .controls .control-row:first-child,
+:is(html.mobile-viewer, body.mobile-viewer) label[for="intervalInput"],
+:is(html.mobile-viewer, body.mobile-viewer) #intervalInput,
+:is(html.mobile-viewer, body.mobile-viewer) #dirLabel,
+:is(html.mobile-viewer, body.mobile-viewer) #gameDirLabel,
+:is(html.mobile-viewer, body.mobile-viewer) #raidInfoBar,
+:is(html.mobile-viewer, body.mobile-viewer) .sync-panel-actions,
+:is(html.mobile-viewer, body.mobile-viewer) .sync-panel-controls,
+:is(html.mobile-viewer, body.mobile-viewer) .sync-panel-sub {
+  display: none !important;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .app {
+  width: min(100% - 10px, 980px);
+  margin: 5px auto 8px;
+  gap: 6px;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .panel {
+  border-radius: 8px;
+  padding: 8px;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .controls {
+  gap: 6px;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .controls .control-row {
+  gap: 6px;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .controls .control-row:nth-child(2) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 120px);
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) #mapSelect,
+:is(html.mobile-viewer, body.mobile-viewer) #mapBaseSelect {
+  min-width: 0;
+  width: 100%;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .status {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .map-viewport {
+  border-radius: 8px;
+  height: auto;
+  min-height: 0;
+  touch-action: pan-y pinch-zoom;
+  overscroll-behavior: contain;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .map-canvas,
+:is(html.mobile-viewer, body.mobile-viewer) .poi-layer,
+:is(html.mobile-viewer, body.mobile-viewer) .poi-wrap,
+:is(html.mobile-viewer, body.mobile-viewer) .peer-layer {
+  touch-action: pan-y pinch-zoom;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .poi {
+  width: 21px;
+  height: 21px;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .poi.poi-small {
+  width: 17px;
+  height: 17px;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .poi-name {
+  top: 21px;
+  max-width: 150px;
+  padding: 1px 4px;
+  font-size: 10px;
+  line-height: 1.12;
+  white-space: nowrap;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-panel {
+  gap: 6px;
+  overflow-x: hidden;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-panel-head {
+  align-items: center;
+  min-width: 0;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-panel-head h2 {
+  font-size: 14px;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-peer-row {
+  align-items: flex-start;
 }
 
 .hint {
@@ -457,6 +563,14 @@ code,
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.poi-filter-panel {
+  margin: 0;
+}
+
+.poi-filter-summary {
+  display: none;
 }
 
 .map-viewport {
@@ -539,6 +653,22 @@ code,
   color: #f5f8fc;
   text-shadow: 0 1px 1px #000, 0 0 6px #000;
   pointer-events: none;
+}
+
+.poi-name.poi-name-above {
+  top: auto;
+  bottom: 27px;
+}
+
+.poi-name.poi-name-right {
+  left: 15px;
+  transform: none;
+}
+
+.poi-name.poi-name-left {
+  right: 15px;
+  left: auto;
+  transform: none;
 }
 
 .map-no-data {
@@ -869,7 +999,7 @@ code,
 
 .sync-panel-controls {
   display: grid;
-  grid-template-columns: minmax(220px, 2fr) minmax(128px, 0.7fr) minmax(220px, 1.6fr) minmax(118px, 0.75fr);
+  grid-template-columns: minmax(220px, 2fr) minmax(128px, 0.7fr) minmax(260px, 2fr);
   gap: 10px;
   align-items: end;
   min-width: 0;
@@ -908,12 +1038,8 @@ code,
   grid-column: 2;
 }
 
-.sync-panel[data-sync-mode="join"] .sync-remote-group .sync-field:not(.sync-field-port) {
+.sync-panel[data-sync-mode="join"] .sync-remote-group .sync-field {
   grid-column: 3;
-}
-
-.sync-panel[data-sync-mode="join"] .sync-field-port {
-  grid-column: 4;
 }
 
 .sync-panel[data-sync-mode="join"] .sync-field {
@@ -944,10 +1070,6 @@ code,
 .sync-field-color input {
   padding: 4px;
   width: 100%;
-}
-
-.sync-field-port {
-  min-width: 0;
 }
 
 .sync-panel-status-row {
@@ -1057,89 +1179,386 @@ code,
     font-size: 10px;
   }
 
+  .raid-info-bar,
+  .sync-panel {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .raid-info-bar::-webkit-scrollbar,
+  .sync-panel::-webkit-scrollbar {
+    display: none;
+  }
+
+  .raid-info-summary-wrap,
+  .raid-info-details {
+    min-width: 720px;
+  }
+
   .raid-info-summary-wrap {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
   }
 
   .raid-toggle-btn {
-    width: 100%;
+    width: auto;
+    flex: 0 0 auto;
   }
 
   .raid-info-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(220px, 1fr));
   }
 
-  .raid-detail-row,
-  .raid-event-head {
-    flex-direction: column;
+  .raid-detail-row {
+    flex-direction: row;
     align-items: flex-start;
   }
 
+  .raid-event-head {
+    flex-direction: row;
+    align-items: baseline;
+  }
+
   .raid-detail-value {
-    text-align: left;
+    text-align: right;
   }
 
   .sync-panel-head,
-  .sync-peer-row {
-    flex-direction: column;
-    align-items: stretch;
+  .sync-panel-status-row,
+  .sync-peer-list {
+    min-width: 720px;
+  }
+
+  .sync-panel-head {
+    flex-direction: row;
+    align-items: flex-start;
   }
 
   .sync-panel-actions {
-    display: grid;
-    grid-template-columns: 1fr;
-    width: 100%;
+    display: flex;
+    width: auto;
   }
 
   .sync-panel-actions .btn {
-    width: 100%;
+    width: auto;
   }
 
   .sync-panel-controls {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: stretch;
+    grid-template-columns: minmax(220px, 2fr) minmax(128px, 0.7fr) minmax(260px, 2fr);
+    align-items: end;
+    min-width: 650px;
+  }
+
+  .sync-panel[data-sync-mode="host"] .sync-panel-controls {
+    grid-template-columns: minmax(240px, 420px) 130px;
+    min-width: 560px;
   }
 
   .sync-field {
-    flex-basis: 100%;
-    min-width: 100%;
+    flex-basis: auto;
+    min-width: 0;
   }
 
-  .sync-field-color,
-  .sync-field-port {
-    flex-basis: 100%;
-    width: 100%;
+  .sync-field-color {
+    flex-basis: auto;
+    width: auto;
   }
 
   .sync-remote-group {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    width: 100%;
+    display: contents;
+    width: auto;
   }
 
   .sync-remote-group[hidden] {
     display: none;
   }
 
+  .sync-peer-row {
+    flex-direction: row;
+    align-items: center;
+  }
+
   .sync-peer-side {
-    text-align: left;
+    text-align: right;
   }
 
   body.task-view-active .app {
-    width: 1500px;
+    width: calc(100% - 14px);
     max-width: none;
-    margin: 12px auto 14px;
-    gap: 10px;
+    margin: 8px auto 10px;
+    gap: 8px;
   }
 
   body.task-view-active .panel {
-    padding: 12px;
+    padding: 10px;
   }
 
+  .tasks-layout,
   body.task-view-active .tasks-layout {
-    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
-    gap: 18px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
   }
+
+  .task-video-pane {
+    position: static;
+  }
+
+  .task-sidebar {
+    max-height: min(42vh, 360px);
+  }
+}
+
+@media (max-width: 520px) and (orientation: portrait) {
+  .app,
+  body.task-view-active .app {
+    width: calc(100% - 8px);
+    margin: 4px auto 8px;
+    gap: 6px;
+  }
+
+  .main-tabs {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .main-tab {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+  }
+
+  .panel,
+  body.task-view-active .panel {
+    border-radius: 9px;
+    padding: 8px;
+  }
+
+  .control-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .control-row .btn,
+  #mapSelect,
+  #mapBaseSelect {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .interval-label {
+    align-self: center;
+  }
+
+  .interval-input {
+    width: 100%;
+  }
+
+  .status {
+    font-size: 12px;
+    line-height: 1.35;
+    word-break: break-word;
+  }
+
+  .overlay-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 8px;
+    max-height: 96px;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+
+  .overlay-controls label {
+    min-width: 0;
+    line-height: 1.25;
+  }
+
+  .map-viewport {
+    border-radius: 8px;
+    min-height: 210px;
+  }
+
+  :is(html.mobile-viewer, body.mobile-viewer) .map-viewport {
+    min-height: 0;
+  }
+
+  .raid-info-summary {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .raid-pill {
+    justify-content: flex-start;
+    border-radius: 999px;
+    padding: 7px 11px;
+  }
+
+  .sync-panel-head {
+    gap: 8px;
+  }
+
+  .sync-panel-controls {
+    gap: 8px;
+  }
+
+  .sync-peer-row,
+  .sync-empty {
+    padding: 8px 9px;
+  }
+
+  .task-sidebar {
+    max-height: 34vh;
+    padding: 10px;
+  }
+
+  .task-trader-item summary {
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+
+  .task-link-btn {
+    padding: 8px 9px;
+  }
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .poi-filter-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(8, 20, 30, 0.58);
+  overflow: hidden;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .poi-filter-summary {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 10px;
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .poi-filter-summary::-webkit-details-marker {
+  display: none;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .poi-filter-summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 140ms ease;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .poi-filter-panel[open] .poi-filter-summary::after {
+  transform: rotate(225deg);
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .overlay-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 8px;
+  max-height: min(38vh, 190px);
+  overflow-y: auto;
+  padding: 8px 10px 10px;
+  border-top: 1px solid rgba(108, 196, 255, 0.18);
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .poi-filter-panel:not([open]) .overlay-controls {
+  display: none;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .overlay-controls label {
+  min-width: 0;
+  line-height: 1.25;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-panel-head,
+:is(html.mobile-viewer, body.mobile-viewer) .sync-panel-status-row,
+:is(html.mobile-viewer, body.mobile-viewer) .sync-peer-list {
+  min-width: 0;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-panel-head {
+  justify-content: flex-start;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-panel-status-row {
+  display: block;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) #syncStatus {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid rgba(125, 255, 115, 0.28);
+  border-radius: 999px;
+  background: rgba(8, 18, 26, 0.58);
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-peer-list {
+  gap: 6px;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-peer-row,
+:is(html.mobile-viewer, body.mobile-viewer) .sync-empty {
+  width: 100%;
+  border-radius: 8px;
+  padding: 8px 9px;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-peer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 3px;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-peer-main {
+  gap: 8px;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-peer-swatch {
+  width: 13px;
+  height: 13px;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-peer-name-block {
+  min-width: 0;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-peer-name {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-peer-meta,
+:is(html.mobile-viewer, body.mobile-viewer) .sync-peer-side {
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-peer-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:is(html.mobile-viewer, body.mobile-viewer) .sync-peer-side {
+  color: var(--muted);
+  padding-left: 21px;
+  text-align: left;
+  white-space: normal;
 }

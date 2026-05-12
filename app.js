@@ -14,14 +14,35 @@ const MAX_POI_RENDER = 1800;
 const MAX_RAID_EVENTS = 30;
 const MAX_VISIBLE_RAID_EVENTS = 5;
 const LAN_SYNC_STORAGE_KEY = "tarkov-map-locator.lan-sync";
+const POI_TOGGLE_STORAGE_KEY = "tarkov-map-locator.poi-toggles";
+const MOBILE_POI_TOGGLE_STORAGE_KEY = "tarkov-map-locator.poi-toggles.mobile";
 const LAN_SYNC_POLL_MS = 1500;
 const LAN_SYNC_MIN_PUBLISH_MS = 900;
 const LAN_SYNC_DEFAULT_COLOR = "#4fd1ff";
 const LAN_SYNC_DEFAULT_PORT = 39247;
-const LAN_SYNC_REMOTE_REQUIRED_MESSAGE = "连接模式需要填写远端地址";
-const LAN_SYNC_REMOTE_PORT_REQUIRED_MESSAGE = "连接模式需要填写远端端口";
+const LAN_SYNC_REMOTE_REQUIRED_MESSAGE = "连接模式需要粘贴樱花远端地址";
+const LAN_SYNC_REMOTE_PORT_REQUIRED_MESSAGE = "樱花远端地址里需要包含有效端口";
 const POI_EDGE_TOLERANCE = 0.02;
 const ICON_BASE = "https://cdn.kaedeori.com/uploads/tarkov/map-icons";
+const CUSTOM_MAP_BACKGROUNDS = {
+  customs: {
+    satellite: "./assets/maps/customs-satellite.png",
+  },
+};
+const MOBILE_POI_TOGGLE_DEFAULTS = {
+  extracts: true,
+  spawnPmc: false,
+  spawnScav: false,
+  spawnBoss: false,
+  spawnSniper: false,
+  spawnRogue: false,
+  locks: false,
+  switches: false,
+  hazards: false,
+  stationary: false,
+  btr: false,
+  transits: false,
+};
 const FLEA_MARKET_SOLD_TEMPLATE = "5bdabfb886f7743e152e867e 0";
 const FLEA_MARKET_EXPIRED_TEMPLATE = "5bdabfe486f7743e1665df6e 0";
 const TASK_MESSAGE_TYPES = {
@@ -131,16 +152,17 @@ const dom = {
   taskLinkAnchor: $("#taskLinkAnchor"),
   pickDirBtn: $("#pickDirBtn"),
   pickGameDirBtn: $("#pickGameDirBtn"),
-  scanBtn: $("#scanBtn"),
   watchBtn: $("#watchBtn"),
   intervalInput: $("#intervalInput"),
   mapSelect: $("#mapSelect"),
+  mapBaseSelect: $("#mapBaseSelect"),
   dirLabel: $("#dirLabel"),
   gameDirLabel: $("#gameDirLabel"),
   status: $("#status"),
   mapStatus: $("#mapStatus"),
   poiCount: $("#poiCount"),
   mapViewport: $("#mapViewport"),
+  poiFilterPanel: $("#poiFilterPanel"),
   mapCanvas: $("#mapCanvas"),
   mapImage: $("#mapImage"),
   poiLayer: $("#poiLayer"),
@@ -162,8 +184,7 @@ const dom = {
   syncNameInput: $("#syncNameInput"),
   syncColorInput: $("#syncColorInput"),
   syncRemoteGroup: $("#syncRemoteGroup"),
-  syncRemoteHostInput: $("#syncRemoteHostInput"),
-  syncRemotePortInput: $("#syncRemotePortInput"),
+  syncRemoteEndpointInput: $("#syncRemoteEndpointInput"),
   syncStatus: $("#syncStatus"),
   syncPeerList: $("#syncPeerList"),
   toggleExtracts: $("#toggleExtracts"),
@@ -249,6 +270,7 @@ function createInitialLanState() {
     syncMode: "host",
     mode: "off",
     transport: "frp-tcp",
+    localState: null,
     peers: [],
     backendReady: false,
     lastError: "",
@@ -259,7 +281,23 @@ function createInitialLanState() {
   };
 }
 
+function detectViewMode() {
+  const params = new URLSearchParams(window.location.search);
+  const requested = String(params.get("view") || params.get("mode") || "").trim().toLowerCase();
+  if (["mobile", "phone", "viewer"].includes(requested)) {
+    return "mobile-viewer";
+  }
+  if (["desktop", "admin", "full"].includes(requested)) {
+    return "desktop-admin";
+  }
+  const ua = navigator.userAgent || "";
+  const uaDataMobile = navigator.userAgentData?.mobile === true;
+  const mobileUa = /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua);
+  return uaDataMobile || mobileUa ? "mobile-viewer" : "desktop-admin";
+}
+
 const state = {
+  viewMode: detectViewMode(),
   screenshotDirHandle: null,
   scanTimer: null,
   watching: false,
@@ -268,6 +306,7 @@ const state = {
   maps: [],
   mapsById: new Map(),
   selectedMapId: AUTO_MAP_ID,
+  mapBaseMode: "abstract",
   lastRaidAutoMapId: "",
   currentMapImageSrc: null,
   layerToggles: {
@@ -315,7 +354,7 @@ function setStatus(message, isError = false) {
 }
 
 function setMainView(view, options = {}) {
-  const activeView = view === "tasks" ? "tasks" : "map";
+  const activeView = state.viewMode === "mobile-viewer" ? "map" : view === "tasks" ? "tasks" : "map";
   const instant = Boolean(options.instant);
   if (viewSwitchTimer) {
     clearTimeout(viewSwitchTimer);
@@ -346,6 +385,22 @@ function setMainView(view, options = {}) {
   }
 
   currentMainView = activeView;
+}
+
+function isMobileViewerMode() {
+  return state.viewMode === "mobile-viewer";
+}
+
+function applyViewMode() {
+  const isMobile = isMobileViewerMode();
+  document.body.classList.toggle("mobile-viewer", isMobile);
+  document.body.classList.toggle("desktop-admin", !isMobile);
+  if (dom.poiFilterPanel) {
+    dom.poiFilterPanel.open = !isMobile;
+  }
+  if (isMobile) {
+    setMainView("map", { instant: true });
+  }
 }
 
 function normalizeTaskVideoUrl(rawUrl) {
@@ -597,6 +652,48 @@ function normalizeSyncHost(value) {
   return String(value ?? "").trim().slice(0, 128);
 }
 
+function parseSyncRemoteEndpoint(value) {
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return { host: "", port: "" };
+  }
+
+  let endpoint = text.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").trim();
+  endpoint = endpoint.split(/\s+/, 1)[0].trim();
+  endpoint = endpoint.split(/[/?#]/, 1)[0].trim();
+  const atIndex = endpoint.lastIndexOf("@");
+  if (atIndex >= 0) {
+    endpoint = endpoint.slice(atIndex + 1).trim();
+  }
+
+  const bracketMatch = endpoint.match(/^\[([^\]]+)\]:(.+)$/);
+  if (bracketMatch) {
+    return {
+      host: normalizeSyncHost(bracketMatch[1]),
+      port: normalizeSyncPortOptional(bracketMatch[2]),
+    };
+  }
+
+  const colonIndex = endpoint.lastIndexOf(":");
+  if (colonIndex < 0) {
+    return { host: normalizeSyncHost(endpoint), port: "" };
+  }
+
+  return {
+    host: normalizeSyncHost(endpoint.slice(0, colonIndex)),
+    port: normalizeSyncPortOptional(endpoint.slice(colonIndex + 1)),
+  };
+}
+
+function formatSyncRemoteEndpoint(host, port) {
+  const normalizedHost = normalizeSyncHost(host);
+  const normalizedPort = normalizeSyncPortOptional(port);
+  if (!normalizedHost) {
+    return "";
+  }
+  return normalizedPort === "" ? normalizedHost : `${normalizedHost}:${normalizedPort}`;
+}
+
 function normalizeSyncPort(value, fallback = LAN_SYNC_DEFAULT_PORT) {
   const numeric = Number.parseInt(String(value ?? ""), 10);
   if (Number.isInteger(numeric) && numeric >= 1 && numeric <= 65535) {
@@ -610,7 +707,11 @@ function normalizeSyncPortOptional(value) {
   if (!text) {
     return "";
   }
-  return normalizeSyncPort(text);
+  if (!/^\d+$/.test(text)) {
+    return "";
+  }
+  const numeric = Number(text);
+  return Number.isInteger(numeric) && numeric >= 1 && numeric <= 65535 ? numeric : "";
 }
 
 function formatSyncPortInputValue(value) {
@@ -653,7 +754,7 @@ function buildLanConfigPayload() {
       displayName: normalizeSyncName(state.lan.displayName),
       color: normalizeHexColor(state.lan.color),
       remoteHost,
-      remotePort: remotePort === "" ? LAN_SYNC_DEFAULT_PORT : remotePort,
+      remotePort: isJoinMode ? remotePort : LAN_SYNC_DEFAULT_PORT,
     },
   };
 }
@@ -723,7 +824,7 @@ function parseScreenshotName(name) {
 }
 
 function parseMapEntry(entry) {
-  const data = entry?.raw?.data;
+  const data = entry?.raw?.data || entry;
   if (!data || !Array.isArray(data.bounds) || data.bounds.length !== 2) {
     return null;
   }
@@ -743,6 +844,7 @@ function parseMapEntry(entry) {
 
   return {
     id: data.id || "",
+    key: data.key || "",
     name: data.name || "未知地图",
     bounds: [
       [x0, z0],
@@ -809,6 +911,10 @@ function getMapBySelectionOrAuto(latest) {
   if (raidPreferredMapId) {
     return state.mapsById.get(raidPreferredMapId) || null;
   }
+  const hintedMap = getMapByStateHint(latest);
+  if (hintedMap) {
+    return hintedMap;
+  }
   if (!latest) {
     return state.maps[0] || null;
   }
@@ -822,6 +928,10 @@ function getRaidSummaryMapFallback(latest) {
   }
   if (state.selectedMapId !== AUTO_MAP_ID && state.selectedMapId && state.mapsById.has(state.selectedMapId)) {
     return state.mapsById.get(state.selectedMapId) || null;
+  }
+  const hintedMap = getMapByStateHint(latest);
+  if (hintedMap) {
+    return hintedMap;
   }
   if (!latest) {
     return null;
@@ -862,6 +972,22 @@ function maybeAutoSwitchMapByRaid() {
     dom.mapSelect.value = AUTO_MAP_ID;
   }
   return true;
+}
+
+function getMapByStateHint(snapshotState) {
+  const mapId = String(snapshotState?.mapId || "").trim();
+  if (mapId && state.mapsById.has(mapId)) {
+    return state.mapsById.get(mapId) || null;
+  }
+  const mapName = String(snapshotState?.mapName || "").trim().toLowerCase();
+  if (mapName) {
+    for (const map of state.maps) {
+      if (String(map?.name || "").trim().toLowerCase() === mapName) {
+        return map;
+      }
+    }
+  }
+  return null;
 }
 
 function createRealToImageConverter(size = { width: 1, height: 1 }, bounds, reverseCoordinate) {
@@ -1133,8 +1259,48 @@ function handleMapMouseMove(event) {
   applyMapZoomTransform();
 }
 
+function getCustomMapBackground(map, mode = state.mapBaseMode) {
+  if (!map || mode !== "satellite") {
+    return "";
+  }
+  return CUSTOM_MAP_BACKGROUNDS[map.key]?.satellite || "";
+}
+
+function updateMapBaseControl(map) {
+  if (!dom.mapBaseSelect) {
+    return;
+  }
+  const hasSatellite = Boolean(getCustomMapBackground(map, "satellite"));
+  dom.mapBaseSelect.disabled = false;
+  dom.mapBaseSelect.value = !map || hasSatellite ? state.mapBaseMode : "abstract";
+  dom.mapBaseSelect.title = map
+    ? hasSatellite
+      ? "切换抽象图/卫星图"
+      : "当前地图没有卫星底图，将显示抽象图"
+    : "地图加载完成后应用底图选择";
+}
+
+function getMapAspectRatio(map) {
+  if (!map || !Array.isArray(map.bounds) || map.bounds.length !== 2) {
+    return null;
+  }
+  const [[x0, z0], [x1, z1]] = map.bounds;
+  const dx = Math.abs(Number(x1) - Number(x0));
+  const dz = Math.abs(Number(z1) - Number(z0));
+  if (!Number.isFinite(dx) || !Number.isFinite(dz) || dx <= 0 || dz <= 0) {
+    return null;
+  }
+  return map.reverseCoordinate ? dz / dx : dx / dz;
+}
+
+function updateMapViewportAspect(map) {
+  const ratio = getMapAspectRatio(map);
+  dom.mapViewport.style.aspectRatio = ratio ? `${ratio}` : "16 / 9";
+}
+
 function setMapImage(map) {
-  const nextSrc = map?.svgPath || "";
+  updateMapViewportAspect(map);
+  const nextSrc = getCustomMapBackground(map) || map?.svgPath || "";
   if (state.currentMapImageSrc === nextSrc) {
     return;
   }
@@ -1242,13 +1408,24 @@ function pushPoi(pois, point, icon, label, opts = {}) {
   });
 }
 
+function getPoiPosition(item) {
+  const point = item?.position || item;
+  if (!point) {
+    return null;
+  }
+  return {
+    x: Number(point.x),
+    z: Number(point.z),
+  };
+}
+
 function collectPois(map) {
   const pois = [];
 
   for (const extract of map.extracts) {
     const displayName = getExtractDisplayName(extract);
     const icon = getExtractIconName(extract);
-    pushPoi(pois, extract?.position, icon, `[撤离点] ${displayName}`, {
+    pushPoi(pois, getPoiPosition(extract), icon, `[撤离点] ${displayName}`, {
       type: "extracts",
       showLabel: true,
       labelText: displayName,
@@ -1259,47 +1436,47 @@ function collectPois(map) {
     const side = Array.isArray(spawn?.sides) && spawn.sides.length > 0 ? spawn.sides.join("/") : "unknown";
     const spawnIcon = getSpawnIconName(spawn);
     const spawnLayerType = getSpawnLayerType(spawn);
-    pushPoi(pois, spawn?.position, spawnIcon, `[出生点] ${spawn?.zoneName || "Zone"} (${side})`, {
+    pushPoi(pois, getPoiPosition(spawn), spawnIcon, `[出生点] ${spawn?.zoneName || "Zone"} (${side})`, {
       type: spawnLayerType,
       small: true,
     });
   }
 
   for (const lock of map.locks) {
-    pushPoi(pois, lock?.position, "lock", `[钥匙门] ${lock?.key?.name || "未命名"}`, {
+    pushPoi(pois, getPoiPosition(lock), "lock", `[钥匙门] ${lock?.key?.name || "未命名"}`, {
       type: "locks",
       small: true,
     });
   }
 
   for (const sw of map.switches) {
-    pushPoi(pois, sw?.position, "switch", `[开关] ${sw?.name || "未命名开关"}`, {
+    pushPoi(pois, getPoiPosition(sw), "switch", `[开关] ${sw?.name || "未命名开关"}`, {
       type: "switches",
     });
   }
 
   for (const hazard of map.hazards) {
-    pushPoi(pois, hazard?.position, "hazard", `[危险区] ${hazard?.name || hazard?.hazardType || "危险区"}`, {
+    pushPoi(pois, getPoiPosition(hazard), "hazard", `[危险区] ${hazard?.name || hazard?.hazardType || "危险区"}`, {
       type: "hazards",
       small: true,
     });
   }
 
   for (const weapon of map.stationaryWeapons) {
-    pushPoi(pois, weapon?.position, "stationarygun", `[固定武器] ${weapon?.stationaryWeapon?.name || "武器点位"}`, {
+    pushPoi(pois, getPoiPosition(weapon), "stationarygun", `[固定武器] ${weapon?.stationaryWeapon?.name || "武器点位"}`, {
       type: "stationary",
     });
   }
 
   for (const stop of map.btrStops) {
-    pushPoi(pois, stop?.position, "btr_stop", `[BTR] ${stop?.name || "停靠点"}`, {
+    pushPoi(pois, getPoiPosition(stop), "btr_stop", `[BTR] ${stop?.name || "停靠点"}`, {
       type: "btr",
     });
   }
 
   for (const transit of map.transits) {
     const transitName = getTransitDisplayName(transit);
-    pushPoi(pois, transit?.position, "extract_transit", `[转移点] ${transitName}`, {
+    pushPoi(pois, getPoiPosition(transit), "extract_transit", `[转移点] ${transitName}`, {
       type: "transits",
       showLabel: true,
       labelText: transitName,
@@ -1314,6 +1491,19 @@ function collectPois(map) {
 
 function isPoiTypeEnabled(type) {
   return Boolean(state.layerToggles[type]);
+}
+
+function getPoiLabelEdgeClass(pos) {
+  const classes = [];
+  if (pos.v > 0.9) {
+    classes.push("poi-name-above");
+  }
+  if (pos.u < 0.08) {
+    classes.push("poi-name-right");
+  } else if (pos.u > 0.92) {
+    classes.push("poi-name-left");
+  }
+  return classes.join(" ");
 }
 
 function renderPoiLayer(map) {
@@ -1350,7 +1540,8 @@ function renderPoiLayer(map) {
 
     if (poi.showLabel && poi.labelText) {
       const labelEl = document.createElement("div");
-      labelEl.className = "poi-name";
+      const edgeClass = getPoiLabelEdgeClass(pos);
+      labelEl.className = edgeClass ? `poi-name ${edgeClass}` : "poi-name";
       labelEl.textContent = poi.labelText;
       wrap.appendChild(labelEl);
     }
@@ -1367,6 +1558,7 @@ function renderPoiLayer(map) {
 function updateMapPanel(latest) {
   if (state.maps.length === 0) {
     dom.mapStatus.textContent = "地图状态: 未加载";
+    updateMapBaseControl(null);
     hidePlayerMarker();
     renderPoiLayer(null);
     setMapImage(null);
@@ -1377,6 +1569,7 @@ function updateMapPanel(latest) {
   const map = getMapBySelectionOrAuto(latest);
   if (!map) {
     dom.mapStatus.textContent = "地图状态: 无可用地图";
+    updateMapBaseControl(null);
     hidePlayerMarker();
     renderPoiLayer(null);
     setMapImage(null);
@@ -1384,6 +1577,7 @@ function updateMapPanel(latest) {
     return null;
   }
 
+  updateMapBaseControl(map);
   setMapImage(map);
   setMapOverlayVisible(false);
   renderPoiLayer(map);
@@ -1560,11 +1754,9 @@ function reflectLanConfigInputs() {
   if (document.activeElement !== dom.syncColorInput) {
     dom.syncColorInput.value = normalizeHexColor(state.lan.color);
   }
-  if (document.activeElement !== dom.syncRemoteHostInput) {
-    dom.syncRemoteHostInput.value = state.lan.remoteHost;
-  }
-  if (document.activeElement !== dom.syncRemotePortInput) {
-    dom.syncRemotePortInput.value = state.lan.syncMode === "join" ? formatSyncPortInputValue(state.lan.remotePort) : "";
+  if (document.activeElement !== dom.syncRemoteEndpointInput) {
+    dom.syncRemoteEndpointInput.value =
+      state.lan.syncMode === "join" ? formatSyncRemoteEndpoint(state.lan.remoteHost, state.lan.remotePort) : "";
   }
 }
 
@@ -1613,19 +1805,108 @@ function persistLanSyncConfig() {
   localStorage.setItem(LAN_SYNC_STORAGE_KEY, JSON.stringify(payload));
 }
 
-async function apiJson(path, init = {}) {
-  const response = await fetch(path, {
-    cache: "no-store",
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init.headers || {}),
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+function getPoiToggleStorageKey() {
+  return isMobileViewerMode() ? MOBILE_POI_TOGGLE_STORAGE_KEY : POI_TOGGLE_STORAGE_KEY;
+}
+
+function loadPoiLayerToggles() {
+  try {
+    const raw = localStorage.getItem(getPoiToggleStorageKey());
+    if (!raw) {
+      if (isMobileViewerMode()) {
+        Object.assign(state.layerToggles, MOBILE_POI_TOGGLE_DEFAULTS);
+      }
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    for (const key of Object.keys(state.layerToggles)) {
+      if (typeof parsed?.[key] === "boolean") {
+        state.layerToggles[key] = parsed[key];
+      }
+    }
+  } catch {
+    // Ignore damaged local settings and keep the built-in defaults.
   }
-  return response.json();
+}
+
+function persistPoiLayerToggles() {
+  try {
+    const payload = {};
+    for (const key of Object.keys(state.layerToggles)) {
+      payload[key] = Boolean(state.layerToggles[key]);
+    }
+    localStorage.setItem(getPoiToggleStorageKey(), JSON.stringify(payload));
+  } catch {
+    // The toggle UI should keep working even if browser storage is unavailable.
+  }
+}
+
+function buildNoStoreUrl(path) {
+  const url = new URL(path, window.location.href);
+  url.searchParams.set("_", String(Date.now()));
+  return url.href;
+}
+
+function xhrJson(path, init = {}) {
+  const method = String(init.method || "GET").toUpperCase();
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, path, true);
+    xhr.responseType = "text";
+    xhr.timeout = 20000;
+    for (const [key, value] of Object.entries(init.headers || {})) {
+      xhr.setRequestHeader(key, value);
+    }
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(`HTTP ${xhr.status}`));
+        return;
+      }
+      try {
+        resolve(JSON.parse(xhr.responseText || "null"));
+      } catch {
+        reject(new Error("Invalid JSON"));
+      }
+    };
+    xhr.onerror = () => reject(new Error("XHR load failed"));
+    xhr.ontimeout = () => reject(new Error("XHR timeout"));
+    xhr.send(init.body || null);
+  });
+}
+
+async function requestJson(path, init = {}) {
+  const { noStore = true, ...requestInit } = init;
+  const method = String(init.method || "GET").toUpperCase();
+  const headers = {
+    Accept: "application/json",
+    ...(requestInit.headers || {}),
+  };
+  if (requestInit.body != null && !Object.keys(headers).some((key) => key.toLowerCase() === "content-type")) {
+    headers["Content-Type"] = "application/json";
+  }
+  const requestPath = method === "GET" && noStore ? buildNoStoreUrl(path) : path;
+  try {
+    const response = await fetch(requestPath, {
+      ...requestInit,
+      method,
+      cache: noStore ? "no-store" : "default",
+      headers,
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return response.json();
+  } catch (fetchError) {
+    try {
+      return await xhrJson(requestPath, { ...requestInit, method, headers });
+    } catch (xhrError) {
+      throw new Error(xhrError?.message || fetchError?.message || "Load failed");
+    }
+  }
+}
+
+async function apiJson(path, init = {}) {
+  return requestJson(path, init);
 }
 
 function applyLanBackendSnapshot(snapshot) {
@@ -1643,7 +1924,12 @@ function applyLanBackendSnapshot(snapshot) {
   if (snapshotHost) {
     state.lan.remoteHost = snapshotHost;
   }
+  const snapshotPort = normalizeSyncPortOptional(snapshot?.remotePort);
+  if (snapshotPort !== "" && state.lan.syncMode === "join") {
+    state.lan.remotePort = snapshotPort;
+  }
   state.lan.transport = safeText(snapshot?.transport, state.lan.transport);
+  state.lan.localState = snapshot?.localState && typeof snapshot.localState === "object" ? snapshot.localState : null;
   state.lan.peers = Array.isArray(snapshot?.peers) ? snapshot.peers : [];
   if (
     !state.lan.lastError &&
@@ -1694,6 +1980,22 @@ function startLanSyncPolling() {
 
 function getLatestCoordinateRecord() {
   return state.records[state.records.length - 1] || null;
+}
+
+function getViewerHostCoordinateRecord() {
+  const hostState = state.lan.localState;
+  if (!hostState || !Number.isFinite(hostState.x) || !Number.isFinite(hostState.z)) {
+    return null;
+  }
+  return {
+    mapId: hostState.mapId || null,
+    mapName: hostState.mapName || null,
+    x: hostState.x,
+    y: Number.isFinite(hostState.y) ? hostState.y : null,
+    z: hostState.z,
+    yawDeg: Number.isFinite(hostState.yawDeg) ? hostState.yawDeg : 0,
+    order: Number.isFinite(hostState.updatedAt) ? hostState.updatedAt : Date.now(),
+  };
 }
 
 function buildLocalLanPayload(latest, activeMap) {
@@ -1807,6 +2109,7 @@ function renderLanSyncPanelLegacy() {
 
 function renderLanSyncPanel() {
   reflectLanConfigInputs();
+  const isMobile = isMobileViewerMode();
   const isJoinMode = state.lan.syncMode === "join";
   dom.syncPanel.dataset.syncMode = isJoinMode ? "join" : "host";
   dom.syncModeBtn.textContent = isJoinMode ? "切换到房主模式" : "切换到连接模式";
@@ -1820,24 +2123,24 @@ function renderLanSyncPanel() {
     : "房主模式（等待队友连接）";
 
   if (state.lan.lastError) {
-    dom.syncStatus.textContent = `同步状态: ${modeText} / ${state.lan.lastError}`;
+    dom.syncStatus.textContent = isMobile ? `同步异常: ${state.lan.lastError}` : `同步状态: ${modeText} / ${state.lan.lastError}`;
     dom.syncStatus.style.color = "var(--danger)";
   } else if (!state.lan.enabled) {
-    dom.syncStatus.textContent = "同步状态: 未开启";
+    dom.syncStatus.textContent = isMobile ? "房主未开启同步" : "同步状态: 未开启";
     dom.syncStatus.style.color = "var(--muted)";
   } else if (!state.lan.backendReady) {
-    dom.syncStatus.textContent = "同步状态: 本机同步服务不可用";
+    dom.syncStatus.textContent = isMobile ? "同步服务不可用" : "同步状态: 本机同步服务不可用";
     dom.syncStatus.style.color = "var(--danger)";
   } else if (!state.lan.peers.length) {
-    dom.syncStatus.textContent = `同步状态: ${modeText} / 暂无在线队友`;
+    dom.syncStatus.textContent = isMobile ? "房主在线 · 暂无队友" : `同步状态: ${modeText} / 暂无在线队友`;
     dom.syncStatus.style.color = "var(--warn)";
   } else {
-    dom.syncStatus.textContent = `同步状态: ${modeText} / 已连接 ${state.lan.peers.length} 名队友`;
+    dom.syncStatus.textContent = isMobile ? `房主在线 · ${state.lan.peers.length} 名队友` : `同步状态: ${modeText} / 已连接 ${state.lan.peers.length} 名队友`;
     dom.syncStatus.style.color = "var(--accent)";
   }
 
   if (!state.lan.enabled) {
-    dom.syncPeerList.innerHTML = '<div class="sync-empty">开启同步后，会在这里显示已连接的队友。</div>';
+    dom.syncPeerList.innerHTML = `<div class="sync-empty">${isMobile ? "等待房主开启同步" : "开启同步后，会在这里显示已连接的队友。"}</div>`;
     return;
   }
   if (!state.lan.peers.length) {
@@ -1850,13 +2153,14 @@ function renderLanSyncPanel() {
       const peerState = peer?.state || {};
       const mapText = safeText(peerState.mapName, "暂无坐标");
       const raidText = safeText(RAID_STATUS_TEXT[peerState.raidStatus] || peerState.raidStatus, "未知状态");
+      const peerMeta = isMobile ? `${mapText} / ${raidText}` : `${mapText} / ${raidText} / ${safeText(peer.host, "--")}`;
       return `
         <article class="sync-peer-row">
           <div class="sync-peer-main">
             <span class="sync-peer-swatch" style="background:${escapeHtml(normalizeHexColor(peer.color))}"></span>
             <div class="sync-peer-name-block">
               <span class="sync-peer-name">${escapeHtml(peer.displayName || "队友")}</span>
-              <span class="sync-peer-meta">${escapeHtml(mapText)} / ${escapeHtml(raidText)} / ${escapeHtml(peer.host || "--")}</span>
+              <span class="sync-peer-meta">${escapeHtml(peerMeta)}</span>
             </div>
           </div>
           <div class="sync-peer-side">
@@ -1869,13 +2173,15 @@ function renderLanSyncPanel() {
 }
 
 function refreshUi() {
-  const latest = getLatestCoordinateRecord();
+  const latest = isMobileViewerMode() ? getViewerHostCoordinateRecord() : getLatestCoordinateRecord();
   updateDirLabels();
   const activeMap = updateMapPanel(latest);
   renderRaidInfo(buildRaidSummary(latest, getRaidSummaryMapFallback(latest)));
   renderLanSyncPanel();
   renderPeerLayer(activeMap);
-  publishLanState(latest, activeMap).catch(() => {});
+  if (!isMobileViewerMode()) {
+    publishLanState(latest, activeMap).catch(() => {});
+  }
 }
 
 function populateMapSelect() {
@@ -1902,12 +2208,10 @@ function populateMapSelect() {
 
 async function loadMapMetadata() {
   try {
-    const res = await fetch("./maps_detail.json", { cache: "no-store" });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-    const raw = await res.json();
-    const maps = Object.values(raw)
+    const metadataPath = isMobileViewerMode() ? "/api/mobile-maps" : "./maps_detail.json";
+    const raw = await requestJson(metadataPath, { noStore: !isMobileViewerMode() });
+    const entries = Array.isArray(raw?.maps) ? raw.maps : Array.isArray(raw) ? raw : Object.values(raw || {});
+    const maps = entries
       .map((entry) => parseMapEntry(entry))
       .filter(Boolean)
       .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
@@ -1961,6 +2265,14 @@ async function ensureReadPermission(handle) {
     return true;
   }
   return (await handle.requestPermission(opts)) === "granted";
+}
+
+async function hasReadPermission(handle) {
+  try {
+    return (await handle.queryPermission({ mode: "read" })) === "granted";
+  } catch {
+    return false;
+  }
 }
 
 async function readFileText(handle) {
@@ -2815,6 +3127,28 @@ function startWatch() {
   setStatus(`监听已开启，间隔 ${intervalSec} 秒`);
 }
 
+async function startWatchWithPermissions() {
+  if (!state.screenshotDirHandle && !state.raid.gameDirHandle) {
+    setStatus("请先选择截图目录或游戏目录", true);
+    return;
+  }
+  if (state.screenshotDirHandle) {
+    const granted = await ensureReadPermission(state.screenshotDirHandle);
+    if (!granted) {
+      setStatus("截图目录读取权限未授权", true);
+      return;
+    }
+  }
+  if (state.raid.gameDirHandle) {
+    const granted = await ensureReadPermission(state.raid.gameDirHandle);
+    if (!granted) {
+      setStatus("Log目录读取权限未授权", true);
+      return;
+    }
+  }
+  startWatch();
+}
+
 function buildDirectoryPickerOptions(kind) {
   const options = {
     mode: "read",
@@ -2913,12 +3247,13 @@ async function restoreScreenshotDirectory() {
     if (!saved) {
       return;
     }
-    const granted = await ensureReadPermission(saved);
+    state.screenshotDirHandle = saved;
+    updateDirLabels();
+    const granted = await hasReadPermission(saved);
     if (!granted) {
-      setStatus("截图目录权限已失效，请重新选择截图目录");
+      setStatus("已记住截图目录，点击开始监听时会请求读取权限");
       return;
     }
-    state.screenshotDirHandle = saved;
     await scanScreenshots();
   } catch {
     setStatus("恢复截图目录失败，请手动选择截图目录");
@@ -2934,9 +3269,11 @@ async function restoreGameDirectory() {
     if (!saved) {
       return;
     }
-    const granted = await ensureReadPermission(saved);
+    state.raid.gameDirHandle = saved;
+    updateDirLabels();
+    const granted = await hasReadPermission(saved);
     if (!granted) {
-      setStatus("游戏目录权限已失效，请重新选择游戏目录");
+      setStatus("已记住Log目录，点击开始监听时会请求读取权限");
       return;
     }
     const valid = await checkGameDirectory(saved);
@@ -2944,7 +3281,6 @@ async function restoreGameDirectory() {
       setStatus("历史游戏目录无效，请重新选择游戏目录");
       return;
     }
-    state.raid.gameDirHandle = saved;
     resetRaidLogOffsets();
     await scanRaidLogs({ fullRescan: true });
   } catch {
@@ -2977,23 +3313,20 @@ function bindEvents() {
   dom.pickGameDirBtn.addEventListener("click", () => {
     chooseGameDirectory().catch((error) => setStatus(`选择游戏目录失败: ${error.message}`, true));
   });
-  dom.scanBtn.addEventListener("click", () => {
-    if (!state.screenshotDirHandle && !state.raid.gameDirHandle) {
-      setStatus("请先选择截图目录或游戏目录", true);
-      return;
-    }
-    scanAllSources().catch((error) => setStatus(`扫描失败: ${error.message}`, true));
-  });
   dom.watchBtn.addEventListener("click", () => {
     if (state.watching) {
       stopWatch();
       setStatus("监听已停止");
     } else {
-      startWatch();
+      startWatchWithPermissions().catch((error) => setStatus(`开启监听失败: ${error.message}`, true));
     }
   });
   dom.mapSelect.addEventListener("change", () => {
     state.selectedMapId = dom.mapSelect.value || AUTO_MAP_ID;
+    refreshUi();
+  });
+  dom.mapBaseSelect.addEventListener("change", () => {
+    state.mapBaseMode = dom.mapBaseSelect.value === "satellite" ? "satellite" : "abstract";
     refreshUi();
   });
   dom.raidToggleBtn.addEventListener("click", () => {
@@ -3048,25 +3381,21 @@ function bindEvents() {
         refreshUi();
       });
   });
-  dom.syncRemoteHostInput.addEventListener("change", () => {
-    state.lan.remoteHost = normalizeSyncHost(dom.syncRemoteHostInput.value);
+  dom.syncRemoteEndpointInput.addEventListener("input", () => {
+    const endpoint = parseSyncRemoteEndpoint(dom.syncRemoteEndpointInput.value);
+    state.lan.remoteHost = endpoint.host;
+    state.lan.remotePort = endpoint.port;
+  });
+  dom.syncRemoteEndpointInput.addEventListener("change", () => {
+    const endpoint = parseSyncRemoteEndpoint(dom.syncRemoteEndpointInput.value);
+    state.lan.remoteHost = endpoint.host;
+    state.lan.remotePort = endpoint.port;
     persistLanSyncConfig();
     syncLanConfigToBackend()
       .then(() => refreshUi())
       .catch((error) => {
         state.lan.backendReady = false;
         state.lan.lastError = error.message || "同步远端地址失败";
-        refreshUi();
-      });
-  });
-  dom.syncRemotePortInput.addEventListener("change", () => {
-    state.lan.remotePort = normalizeSyncPortOptional(dom.syncRemotePortInput.value);
-    persistLanSyncConfig();
-    syncLanConfigToBackend()
-      .then(() => refreshUi())
-      .catch((error) => {
-        state.lan.backendReady = false;
-        state.lan.lastError = error.message || "同步远端端口失败";
         refreshUi();
       });
   });
@@ -3089,6 +3418,7 @@ function bindEvents() {
     dom[domKey].checked = Boolean(state.layerToggles[stateKey]);
     dom[domKey].addEventListener("change", () => {
       state.layerToggles[stateKey] = dom[domKey].checked;
+      persistPoiLayerToggles();
       refreshUi();
     });
   }
@@ -3112,11 +3442,6 @@ function bindEvents() {
   });
 
   dom.mapImage.addEventListener("load", () => {
-    const w = dom.mapImage.naturalWidth;
-    const h = dom.mapImage.naturalHeight;
-    if (w > 0 && h > 0) {
-      dom.mapViewport.style.aspectRatio = `${w} / ${h}`;
-    }
     const next = clampZoomTranslation(state.zoom.scale, state.zoom.tx, state.zoom.ty);
     state.zoom.tx = next.tx;
     state.zoom.ty = next.ty;
@@ -3125,8 +3450,14 @@ function bindEvents() {
 }
 
 async function boot() {
-  loadLanSyncConfig();
-  initTaskPanel();
+  applyViewMode();
+  if (!isMobileViewerMode()) {
+    loadLanSyncConfig();
+  }
+  loadPoiLayerToggles();
+  if (!isMobileViewerMode()) {
+    initTaskPanel();
+  }
   bindEvents();
   setMainView("map", { instant: true });
   resetMapZoom();
@@ -3135,14 +3466,23 @@ async function boot() {
   updateDirLabels();
   renderRaidInfo(createInitialRaidSummary());
   renderLanSyncPanel();
+  if (!isMobileViewerMode()) {
+    await restoreScreenshotDirectory();
+    await restoreGameDirectory();
+  }
   await loadMapMetadata();
-  await syncLanConfigToBackend().catch((error) => {
-    state.lan.backendReady = false;
-    state.lan.lastError = error.message || "联机服务初始化失败";
-  });
+  if (isMobileViewerMode()) {
+    await fetchLanSyncState().catch((error) => {
+      state.lan.backendReady = false;
+      state.lan.lastError = error.message || "联机服务初始化失败";
+    });
+  } else {
+    await syncLanConfigToBackend().catch((error) => {
+      state.lan.backendReady = false;
+      state.lan.lastError = error.message || "联机服务初始化失败";
+    });
+  }
   startLanSyncPolling();
-  await restoreScreenshotDirectory();
-  await restoreGameDirectory();
   refreshUi();
 }
 
